@@ -38,7 +38,7 @@ jobs:
           FTP_HOST: ${{ secrets.HOSTINGER_FTP_HOST }}
           FTP_USER: ${{ secrets.HOSTINGER_FTP_USERNAME }}
           FTP_PASS: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
-          FTP_REMOTE: ${{ secrets.HOSTINGER_FTP_REMOTE_PATH_ADMIN }}/
+          FTP_REMOTE: ${{ secrets.HOSTINGER_FTP_REMOTE_PATH_ADMIN }}
         run: |
           if [ -z "$FTP_HOST" ] || [ -z "$FTP_USER" ] || [ -z "$FTP_PASS" ] || [ -z "$FTP_REMOTE" ]; then
             echo "::error::Crie em Settings → Secrets → Actions: HOSTINGER_FTP_HOST, HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD, HOSTINGER_FTP_REMOTE_PATH_ADMIN (ex: public_html/admin). Cada repositório tem os seus secrets."

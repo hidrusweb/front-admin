@@ -1,7 +1,10 @@
 # Deploy SPA Vite (dist) → Hostinger via FTP.
 # Repositório: só o admin na raiz (sem pasta hidrus-frontend-admin).
 #
-# Secrets: HOSTINGER_FTP_*, HOSTINGER_FTP_REMOTE_PATH_ADMIN, VITE_API_URL
+# Secrets (criar NESTE repositório — não são herdados do repo backend):
+#   HOSTINGER_FTP_HOST, HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD
+#   HOSTINGER_FTP_REMOTE_PATH_ADMIN (ex: public_html/admin) — nunca deixar vazio
+#   VITE_API_URL
 # Host: só IP ou hostname (sem ftp://)
 
 name: Deploy Admin (Vite)
@@ -27,6 +30,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Secrets FTP obrigatórios
+        if: ${{ secrets.HOSTINGER_FTP_HOST == '' || secrets.HOSTINGER_FTP_USERNAME == '' || secrets.HOSTINGER_FTP_PASSWORD == '' || secrets.HOSTINGER_FTP_REMOTE_PATH_ADMIN == '' }}
+        run: |
+          echo "::error::Neste repositório (admin), crie em Settings → Secrets → Actions: HOSTINGER_FTP_HOST, HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD, HOSTINGER_FTP_REMOTE_PATH_ADMIN (ex: public_html/admin). Os secrets do repo backend não se aplicam aqui."
+          exit 1
 
       - name: Setup Node
         uses: actions/setup-node@v4

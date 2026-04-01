@@ -1,0 +1,60 @@
+# Deploy SPA Vite (pasta dist) → Hostinger via FTP.
+# Secrets:
+#   HOSTINGER_FTP_HOST, HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD
+#   HOSTINGER_FTP_REMOTE_PATH_ADMIN = pasta onde ficam os arquivos estáticos (ex: /public_html/admin)
+#   HOSTINGER_FTP_PORT (opcional; Hostinger costuma 65002 — se vazio, 21)
+#   VITE_API_URL = URL pública da API no build (ex: https://api.seudominio.com/api)
+
+name: Deploy Admin (Vite)
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'hidrus-frontend-admin/**'
+      - '.github/workflows/deploy-admin.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-admin
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: hidrus-frontend-admin/package-lock.json
+
+      - name: Install & build
+        working-directory: hidrus-frontend-admin
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy dist via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_HOST }}
+          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          port: ${{ secrets.HOSTINGER_FTP_PORT != '' && secrets.HOSTINGER_FTP_PORT || 21 }}
+          protocol: ftps
+          security: loose
+          timeout: 300000
+          local-dir: ./hidrus-frontend-admin/dist/
+          server-dir: ${{ secrets.HOSTINGER_FTP_REMOTE_PATH_ADMIN }}/
+          dangerous-clean-slate: true

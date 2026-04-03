@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Resolver } from 'react-hook-form';
 import { z } from 'zod';
@@ -8,8 +8,16 @@ import { PlusCircle, Pencil, Trash2, FileDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { mapAgrupamento, mapCondominio, mapUnidade, payloadUnidadeSave } from '../../lib/hidrusApi';
+import { exportCondominosPdf, formatUnidadeLegado } from '../../lib/exportCondominosPdf';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
+
+interface AgrupamentoOption {
+  id: number;
+  nome: string;
+  condominioId: number;
+  condominioNome: string;
+}
 
 interface Unidade {
   id: number;
@@ -45,6 +53,7 @@ export default function Unidades() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Unidade | null>(null);
   const [selectedCond, setSelectedCond] = useState('');
+  const [selectedAgrupamento, setSelectedAgrupamento] = useState('');
 
   const { data: condominios = [] } = useQuery({
     queryKey: ['condominios'],
@@ -52,13 +61,65 @@ export default function Unidades() {
       api.get('/Condominium/condominium').then((r) => (Array.isArray(r.data) ? r.data : []).map(mapCondominio)),
   });
 
-  const { data: unidades = [], isLoading } = useQuery<Unidade[]>({
-    queryKey: ['unidades', selectedCond],
+  const { data: agrupamentosLista = [] } = useQuery<AgrupamentoOption[]>({
+    queryKey: ['agrupamentos-todos'],
     queryFn: () =>
-      selectedCond
-        ? api.get(`/Unit/condominio/${selectedCond}`).then((r) => (Array.isArray(r.data) ? r.data : []).map(mapUnidade))
-        : api.get('/Unit/GetAll').then((r) => (Array.isArray(r.data) ? r.data : []).map(mapUnidade)),
+      api.get('/grouping').then((r) => {
+        const list = (Array.isArray(r.data) ? r.data : []).map(mapAgrupamento) as AgrupamentoOption[];
+        return [...list].sort(
+          (a, b) =>
+            (a.condominioNome || '').localeCompare(b.condominioNome || '', 'pt-BR', { sensitivity: 'base' }) ||
+            (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
+        );
+      }),
   });
+
+  const agrupamentosNoFiltroCondominio = useMemo(() => {
+    if (!selectedCond) return agrupamentosLista;
+    return agrupamentosLista.filter((a) => String(a.condominioId) === selectedCond);
+  }, [agrupamentosLista, selectedCond]);
+
+  useEffect(() => {
+    if (!selectedAgrupamento) return;
+    const ag = agrupamentosLista.find((x) => String(x.id) === selectedAgrupamento);
+    if (!ag) {
+      setSelectedAgrupamento('');
+      return;
+    }
+    if (selectedCond && String(ag.condominioId) !== selectedCond) {
+      setSelectedAgrupamento('');
+    }
+  }, [selectedCond, selectedAgrupamento, agrupamentosLista]);
+
+  const { data: unidades = [], isLoading } = useQuery<Unidade[]>({
+    queryKey: ['unidades', selectedCond, selectedAgrupamento],
+    queryFn: () => {
+      if (selectedAgrupamento) {
+        return api
+          .get(`/Unit/agrupamento/${selectedAgrupamento}`)
+          .then((r) => (Array.isArray(r.data) ? r.data : []).map(mapUnidade));
+      }
+      if (selectedCond) {
+        return api
+          .get(`/Unit/condominio/${selectedCond}`)
+          .then((r) => (Array.isArray(r.data) ? r.data : []).map(mapUnidade));
+      }
+      return api.get('/Unit/GetAll').then((r) => (Array.isArray(r.data) ? r.data : []).map(mapUnidade));
+    },
+  });
+
+  const tituloFiltroPdf = useMemo(() => {
+    if (selectedAgrupamento) {
+      const ag = agrupamentosLista.find((x) => String(x.id) === selectedAgrupamento);
+      if (!ag) return undefined;
+      return `${ag.condominioNome} · ${ag.nome}`;
+    }
+    if (selectedCond) {
+      const c = (condominios as { id: number; nome: string }[]).find((x) => String(x.id) === selectedCond);
+      return c?.nome;
+    }
+    return undefined;
+  }, [selectedAgrupamento, selectedCond, agrupamentosLista, condominios]);
 
   const {
     register,
@@ -88,7 +149,18 @@ export default function Unidades() {
 
   const openCreate = () => {
     setEditing(null);
-    reset({ condominioId: selectedCond, agrupamentoId: '', unidade: '', endereco: '', condomino: '', cpf: '', email: '', telefone: '', hidrometro: '' });
+    const ag = selectedAgrupamento ? agrupamentosLista.find((x) => String(x.id) === selectedAgrupamento) : undefined;
+    reset({
+      condominioId: ag ? String(ag.condominioId) : selectedCond || '',
+      agrupamentoId: ag ? String(ag.id) : '',
+      unidade: '',
+      endereco: '',
+      condomino: '',
+      cpf: '',
+      email: '',
+      telefone: '',
+      hidrometro: '',
+    });
     setModalOpen(true);
   };
 
@@ -143,25 +215,44 @@ export default function Unidades() {
     onError: () => toast.error('Erro ao remover unidade'),
   });
 
-  const exportPdf = () => {
-    toast.error('Exportação PDF ainda não está disponível na API Laravel.');
+  const exportarCondominosPdf = () => {
+    if (!unidades.length) {
+      toast.error('Não há condôminos na listagem para exportar.');
+      return;
+    }
+    const ok = exportCondominosPdf(
+      unidades.map((u) => ({
+        condominioNome: u.condominioNome ?? '',
+        agrupamentoNome: u.agrupamentoNome ?? '',
+        unidade: u.unidade,
+        condomino: u.condomino,
+        cpf: u.cpf,
+        email: u.email,
+        telefone: u.telefone,
+        endereco: u.endereco,
+        hidrometro: u.hidrometro,
+      })),
+      { tituloFiltro: tituloFiltroPdf }
+    );
+    if (ok) toast.success('PDF dos condôminos gerado.');
   };
 
   const columns: ColumnDef<Unidade>[] = [
-    { accessorKey: 'unidade', header: 'Unidade' },
+    {
+      id: 'unidadeLegado',
+      header: 'Unidade',
+      accessorFn: (row) => formatUnidadeLegado(row.agrupamentoNome ?? '', row.unidade),
+      cell: ({ row }) => formatUnidadeLegado(row.original.agrupamentoNome ?? '', row.original.unidade),
+    },
     { accessorKey: 'endereco', header: 'Endereço' },
     { accessorKey: 'condomino', header: 'Condômino' },
     { accessorKey: 'cpf', header: 'CPF' },
     { accessorKey: 'condominioNome', header: 'Condomínio' },
-    { accessorKey: 'agrupamentoNome', header: 'Agrupamento' },
     {
       id: 'actions',
       header: 'Ações',
       cell: ({ row }) => (
         <div className="flex gap-2">
-          <button type="button" onClick={() => exportPdf()} className="btn py-1 px-2 text-xs bg-orange-100 text-orange-700 hover:bg-orange-200">
-            <FileDown size={14} />
-          </button>
           <button onClick={() => openEdit(row.original)} className="btn-secondary py-1 px-2 text-xs">
             <Pencil size={14} />
           </button>
@@ -187,22 +278,53 @@ export default function Unidades() {
       </div>
 
       <div className="card space-y-4">
-        <div className="flex gap-4">
+        <div className="flex flex-wrap items-end gap-4">
           <div>
-            <label className="label">Filtrar por Condomínio</label>
-            <select className="input" value={selectedCond} onChange={(e) => setSelectedCond(e.target.value)}>
+            <label className="label">Filtrar por condomínio</label>
+            <select
+              className="input max-w-xs"
+              value={selectedCond}
+              onChange={(e) => setSelectedCond(e.target.value)}
+            >
               <option value="">Todos</option>
-              {(condominios as any[]).map((c: any) => (
-                <option key={c.id} value={c.id}>{c.nome}</option>
+              {(condominios as { id: number; nome: string }[]).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
               ))}
             </select>
           </div>
+          <div>
+            <label className="label">Filtrar por agrupamento</label>
+            <select
+              className="input max-w-md"
+              value={selectedAgrupamento}
+              onChange={(e) => setSelectedAgrupamento(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {agrupamentosNoFiltroCondominio.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {selectedCond ? a.nome : `${a.condominioNome} — ${a.nome}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={exportarCondominosPdf}
+            className="btn-secondary py-2 px-3 text-sm inline-flex items-center gap-2"
+            disabled={isLoading || unidades.length === 0}
+            title="Exporta a listagem atual (condôminos / unidades filtradas)"
+          >
+            <FileDown size={16} />
+            Exportar condôminos (PDF)
+          </button>
         </div>
 
         {isLoading ? (
           <p className="text-gray-400 text-sm">Carregando...</p>
         ) : (
-          <DataTable data={unidades} columns={columns} searchPlaceholder="Buscar unidade..." />
+          <DataTable data={unidades} columns={columns} searchPlaceholder="Buscar (unidade, condômino, CPF...)" />
         )}
       </div>
 

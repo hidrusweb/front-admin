@@ -18,18 +18,29 @@ interface Consumo {
   idTabelaImposto: number;
   inicio: string;
   fim: string;
-  valorExcedente: number;
-  volumeExcedente: number;
+  dataProximaLeitura: string;
+  taxaMinima: number;
+  valorAreaComum: number;
 }
 
-const schema = z.object({
-  condominioId: z.string().min(1, 'Selecione um condomínio'),
-  idTabelaImposto: z.string().min(1, 'Selecione a tabela de impostos'),
-  inicio: z.string().min(1, 'Obrigatório'),
-  fim: z.string().min(1, 'Obrigatório'),
-  valorExcedente: z.coerce.number().nonnegative(),
-  volumeExcedente: z.coerce.number().nonnegative(),
-});
+const schema = z
+  .object({
+    condominioId: z.string().min(1, 'Selecione um condomínio'),
+    idTabelaImposto: z.string().min(1, 'Selecione a tabela de impostos'),
+    inicio: z.string().min(1, 'Obrigatório'),
+    fim: z.string().min(1, 'Obrigatório'),
+    dataProximaLeitura: z.string().min(1, 'Obrigatório'),
+    taxaMinima: z.coerce.number().nonnegative('Inválido'),
+    valorAreaComum: z.coerce.number().nonnegative('Inválido'),
+  })
+  .refine((d) => new Date(d.fim) >= new Date(d.inicio), {
+    message: 'O fim não pode ser anterior ao início',
+    path: ['fim'],
+  })
+  .refine((d) => new Date(d.dataProximaLeitura) >= new Date(d.fim), {
+    message: 'A próxima leitura não pode ser anterior ao fim do período',
+    path: ['dataProximaLeitura'],
+  });
 
 type FormData = z.infer<typeof schema>;
 
@@ -70,8 +81,9 @@ export default function Consumos() {
       idTabelaImposto: firstTabela ? String(firstTabela) : '',
       inicio: '',
       fim: '',
-      valorExcedente: 0,
-      volumeExcedente: 0,
+      dataProximaLeitura: '',
+      taxaMinima: 62.8,
+      valorAreaComum: 0,
     });
     setModalOpen(true);
   };
@@ -83,8 +95,9 @@ export default function Consumos() {
       idTabelaImposto: String(c.idTabelaImposto || ''),
       inicio: c.inicio?.slice(0, 10),
       fim: c.fim?.slice(0, 10),
-      valorExcedente: c.valorExcedente,
-      volumeExcedente: c.volumeExcedente,
+      dataProximaLeitura: c.dataProximaLeitura?.slice(0, 10) || '',
+      taxaMinima: c.taxaMinima ?? 62.8,
+      valorAreaComum: c.valorAreaComum ?? 0,
     });
     setModalOpen(true);
   };
@@ -97,8 +110,9 @@ export default function Consumos() {
           idTabelaImposto: Number(data.idTabelaImposto),
           inicio: data.inicio,
           fim: data.fim,
-          valorExcedente: data.valorExcedente,
-          volumeExcedente: data.volumeExcedente,
+          dataProximaLeitura: data.dataProximaLeitura,
+          taxaMinima: data.taxaMinima,
+          valorAreaComum: data.valorAreaComum,
         },
         editing?.id
       );
@@ -128,10 +142,23 @@ export default function Consumos() {
 
   const columns: ColumnDef<Consumo>[] = [
     { accessorKey: 'condominioNome', header: 'Condomínio' },
-    { accessorKey: 'inicio', header: 'Início', cell: ({ getValue }) => (getValue() as string)?.slice(0, 10) },
-    { accessorKey: 'fim', header: 'Fim', cell: ({ getValue }) => (getValue() as string)?.slice(0, 10) },
-    { accessorKey: 'valorExcedente', header: 'Valor Excedente', cell: ({ getValue }) => fmt(getValue() as number) },
-    { accessorKey: 'volumeExcedente', header: 'Volume Excedente (m³)' },
+    { accessorKey: 'inicio', header: 'Início leituras', cell: ({ getValue }) => (getValue() as string)?.slice(0, 10) },
+    { accessorKey: 'fim', header: 'Fim leituras', cell: ({ getValue }) => (getValue() as string)?.slice(0, 10) },
+    {
+      accessorKey: 'dataProximaLeitura',
+      header: 'Próx. leitura',
+      cell: ({ getValue }) => (getValue() as string)?.slice(0, 10) ?? '—',
+    },
+    {
+      accessorKey: 'taxaMinima',
+      header: 'Tarifa fixa',
+      cell: ({ getValue }) => fmt(getValue() as number),
+    },
+    {
+      accessorKey: 'valorAreaComum',
+      header: 'Área comum',
+      cell: ({ getValue }) => fmt(getValue() as number),
+    },
     {
       id: 'actions',
       header: 'Ações',
@@ -141,7 +168,9 @@ export default function Consumos() {
             <Pencil size={14} />
           </button>
           <button
-            onClick={() => { if (confirm('Remover consumo?')) deleteMutation.mutate(row.original.id); }}
+            onClick={() => {
+              if (confirm('Remover consumo?')) deleteMutation.mutate(row.original.id);
+            }}
             className="btn-danger py-1 px-2 text-xs"
           >
             <Trash2 size={14} />
@@ -169,46 +198,62 @@ export default function Consumos() {
         )}
       </div>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar Consumo' : 'Novo Consumo'}>
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar Consumo' : 'Novo Consumo'} size="xl">
         <form onSubmit={handleSubmit((d) => saveMutation.mutate(d))} className="space-y-4">
-          <div>
-            <label className="label">Condomínio *</label>
-            <select className="input" {...register('condominioId')}>
-              <option value="">Selecione...</option>
-              {(condominios as any[]).map((c: any) => (
-                <option key={c.id} value={c.id}>{c.nome}</option>
-              ))}
-            </select>
-            {errors.condominioId && <p className="text-red-500 text-xs mt-1">{errors.condominioId.message}</p>}
-          </div>
+          <p className="text-sm text-gray-500">
+            Mesmos campos do legado: período de leituras, próxima leitura, tarifa fixa e valor da área comum.
+          </p>
           <div>
             <label className="label">Tabela de impostos *</label>
             <select className="input" {...register('idTabelaImposto')}>
               <option value="">Selecione...</option>
-              {(tabelas as any[]).map((t: any) => (
-                <option key={t.id} value={t.id}>{t.nome}</option>
+              {(tabelas as { id: number; nome: string }[]).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nome}
+                </option>
               ))}
             </select>
             {errors.idTabelaImposto && <p className="text-red-500 text-xs mt-1">{errors.idTabelaImposto.message}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Condomínio *</label>
+            <select className="input" {...register('condominioId')}>
+              <option value="">Selecione...</option>
+              {(condominios as { id: number; nome: string }[]).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+            {errors.condominioId && <p className="text-red-500 text-xs mt-1">{errors.condominioId.message}</p>}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="label">Início *</label>
+              <label className="label">Data de início das leituras *</label>
               <input type="date" className="input" {...register('inicio')} />
               {errors.inicio && <p className="text-red-500 text-xs mt-1">{errors.inicio.message}</p>}
             </div>
             <div>
-              <label className="label">Fim *</label>
+              <label className="label">Data de término das leituras *</label>
               <input type="date" className="input" {...register('fim')} />
               {errors.fim && <p className="text-red-500 text-xs mt-1">{errors.fim.message}</p>}
             </div>
-            <div>
-              <label className="label">Valor Excedente (R$) *</label>
-              <input type="number" step="0.01" className="input" {...register('valorExcedente')} />
+            <div className="sm:col-span-2">
+              <label className="label">Data da próxima leitura *</label>
+              <input type="date" className="input" {...register('dataProximaLeitura')} />
+              {errors.dataProximaLeitura && (
+                <p className="text-red-500 text-xs mt-1">{errors.dataProximaLeitura.message}</p>
+              )}
             </div>
             <div>
-              <label className="label">Volume Excedente (m³) *</label>
-              <input type="number" step="0.01" className="input" {...register('volumeExcedente')} />
+              <label className="label">Tarifa fixa (R$) *</label>
+              <input type="number" step="0.01" min={0} className="input" {...register('taxaMinima')} />
+              {errors.taxaMinima && <p className="text-red-500 text-xs mt-1">{errors.taxaMinima.message}</p>}
+            </div>
+            <div>
+              <label className="label">Valor da área comum (R$) *</label>
+              <input type="number" step="0.01" min={0} className="input" {...register('valorAreaComum')} />
+              {errors.valorAreaComum && <p className="text-red-500 text-xs mt-1">{errors.valorAreaComum.message}</p>}
             </div>
           </div>
           <div className="flex gap-3 pt-2">

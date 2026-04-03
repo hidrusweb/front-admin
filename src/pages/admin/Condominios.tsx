@@ -45,9 +45,11 @@ export default function Condominios() {
   const [editing, setEditing] = useState<Condominio | null>(null);
 
   const { data: condominios = [], isLoading } = useQuery<Condominio[]>({
-    queryKey: ['condominios'],
+    queryKey: ['condominios', 'admin-inclusive'],
     queryFn: () =>
-      api.get('/Condominium/condominium').then((r) => (Array.isArray(r.data) ? r.data : []).map(mapCondominio)),
+      api
+        .get('/Condominium/condominium', { params: { includeInactive: true } })
+        .then((r) => (Array.isArray(r.data) ? r.data : []).map(mapCondominio)),
   });
 
   const {
@@ -77,7 +79,10 @@ export default function Condominios() {
         : api.post('/Condominium/createcondominium', body);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['condominios'] });
+      qc.invalidateQueries({
+        predicate: (q) =>
+          q.queryKey[0] === 'condominios' || q.queryKey[0] === 'dashboard-condominios',
+      });
       toast.success(editing ? 'Condomínio atualizado!' : 'Condomínio criado!');
       setModalOpen(false);
     },
@@ -89,7 +94,11 @@ export default function Condominios() {
       c.ativo
         ? api.patch(`/Condominium/desactive/${c.id}`)
         : api.patch(`/Condominium/active/${c.id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['condominios'] }),
+    onSuccess: () =>
+      qc.invalidateQueries({
+        predicate: (q) =>
+          q.queryKey[0] === 'condominios' || q.queryKey[0] === 'dashboard-condominios',
+      }),
     onError: () => toast.error('Erro ao alterar status'),
   });
 

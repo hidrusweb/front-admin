@@ -16,11 +16,20 @@ interface Agrupamento {
   nome: string;
   condominioId: number;
   condominioNome?: string;
+  taxa: number;
 }
 
 const schema = z.object({
   nome: z.string().min(1, 'Obrigatório'),
   condominioId: z.string().min(1, 'Selecione um condomínio'),
+  taxaMinima: z.preprocess(
+    (v) => {
+      if (v === '' || v === null || v === undefined) return 0;
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) ? n : 0;
+    },
+    z.number().min(0, 'Informe um valor ≥ 0')
+  ),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -50,24 +59,31 @@ export default function Agrupamentos() {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({ resolver: zodResolver(schema) });
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: { taxaMinima: 0 },
+  });
 
   const openCreate = () => {
     setEditing(null);
-    reset({ nome: '', condominioId: filterCond || '' });
+    reset({ nome: '', condominioId: filterCond || '', taxaMinima: 0 });
     setModalOpen(true);
   };
 
   const openEdit = (a: Agrupamento) => {
     setEditing(a);
-    reset({ nome: a.nome, condominioId: String(a.condominioId) });
+    reset({ nome: a.nome, condominioId: String(a.condominioId), taxaMinima: a.taxa ?? 0 });
     setModalOpen(true);
   };
 
   const saveMutation = useMutation({
     mutationFn: (data: FormData) => {
       const body = payloadAgrupamentoSave(
-        { nome: data.nome, condominioId: Number(data.condominioId) },
+        {
+          nome: data.nome,
+          condominioId: Number(data.condominioId),
+          taxa: data.taxaMinima,
+        },
         editing?.id
       );
       return editing ? api.put('/grouping', body) : api.post('/grouping', body);
@@ -92,6 +108,14 @@ export default function Agrupamentos() {
   const columns: ColumnDef<Agrupamento>[] = [
     { accessorKey: 'nome', header: 'Nome' },
     { accessorKey: 'condominioNome', header: 'Condomínio' },
+    {
+      accessorKey: 'taxa',
+      header: 'Taxa mínima',
+      cell: ({ row }) => {
+        const v = row.original.taxa;
+        return Number.isFinite(v) ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+      },
+    },
     {
       id: 'actions',
       header: 'Ações',
@@ -157,6 +181,17 @@ export default function Agrupamentos() {
             <label className="label">Nome *</label>
             <input className="input" {...register('nome')} />
             {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome.message}</p>}
+          </div>
+          <div>
+            <label className="label">Taxa mínima *</label>
+            <input
+              className="input max-w-xs"
+              type="number"
+              step="0.01"
+              min="0"
+              {...register('taxaMinima', { valueAsNumber: true })}
+            />
+            {errors.taxaMinima && <p className="text-red-500 text-xs mt-1">{errors.taxaMinima.message}</p>}
           </div>
           <div className="flex gap-3 pt-2">
             <button type="submit" disabled={isSubmitting} className="btn-primary">

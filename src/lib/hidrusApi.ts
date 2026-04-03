@@ -73,6 +73,7 @@ export function mapConsumo(raw: unknown) {
   const c = raw as Record<string, unknown>;
   const di = c.DataInicio ?? c.inicio;
   const df = c.DataFim ?? c.fim;
+  const dp = c.DataProximaLeitura ?? c.dataProximaLeitura;
   return {
     id: Number(pickId(c)),
     condominioId: Number(c.IdCondominio ?? c.condominioId ?? 0),
@@ -82,8 +83,14 @@ export function mapConsumo(raw: unknown) {
     idTabelaImposto: Number(c.IdTabelaImposto ?? c.idTabelaImposto ?? 0),
     inicio: typeof di === 'string' ? di : (di as Date)?.toISOString?.() ?? '',
     fim: typeof df === 'string' ? df : (df as Date)?.toISOString?.() ?? '',
-    valorExcedente: Number(c.ValorExcedente ?? c.valorExcedente ?? 0),
-    volumeExcedente: Number(c.VolumeExcedente ?? c.volumeExcedente ?? 0),
+    dataProximaLeitura:
+      typeof dp === 'string'
+        ? dp
+        : dp != null && typeof (dp as Date).toISOString === 'function'
+          ? (dp as Date).toISOString()
+          : '',
+    taxaMinima: Number(c.TaxaMinima ?? c.taxaMinima ?? 0),
+    valorAreaComum: Number(c.ValorAreaComum ?? c.valorAreaComum ?? 0),
   };
 }
 
@@ -182,7 +189,7 @@ export function payloadAgrupamentoSave(
   const p: Record<string, unknown> = {
     Nome: data.nome,
     IdCondominio: data.condominioId,
-    Taxa: data.taxa ?? null,
+    Taxa: data.taxa ?? 0,
   };
   if (id != null) p.Id = id;
   return p;
@@ -193,19 +200,24 @@ export function payloadConsumoSave(
     condominioId: number;
     inicio: string;
     fim: string;
-    valorExcedente: number;
-    volumeExcedente: number;
+    dataProximaLeitura: string;
+    taxaMinima: number;
+    valorAreaComum: number;
     idTabelaImposto: number;
   },
   id?: number
 ) {
+  /** Legado (`consumos.js`) não exibe esses campos e envia sempre 0. */
   const p: Record<string, unknown> = {
     DataInicio: data.inicio,
     DataFim: data.fim,
+    DataProximaLeitura: data.dataProximaLeitura,
     IdCondominio: data.condominioId,
     IdTabelaImposto: data.idTabelaImposto,
-    ValorExcedente: data.valorExcedente,
-    VolumeExcedente: data.volumeExcedente,
+    TaxaMinima: data.taxaMinima,
+    ValorAreaComum: data.valorAreaComum,
+    ValorExcedente: 0,
+    VolumeExcedente: 0,
   };
   if (id != null) p.Id = id;
   return p;

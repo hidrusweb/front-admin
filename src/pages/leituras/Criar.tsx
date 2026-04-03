@@ -99,7 +99,7 @@ export default function LeiturasCreate() {
   }, [imagemFile]);
 
   const createMutation = useMutation({
-    mutationFn: (payload: { data: FormData; imagem: File | null }) => {
+    mutationFn: (payload: { data: FormData; imagem: File }) => {
       const { data, imagem } = payload;
       const idTabela = (tabelas as { id: number }[])[0]?.id;
       if (!idTabela) throw new Error('Nenhuma tabela de impostos cadastrada.');
@@ -108,9 +108,7 @@ export default function LeiturasCreate() {
       fd.append('Valor', String(Math.round(Number(data.valor))));
       fd.append('IdUnidade', String(Number(data.unidadeId)));
       fd.append('IdTabelaImposto', String(idTabela));
-      if (imagem) {
-        fd.append('imagem', imagem);
-      }
+      fd.append('imagem', imagem);
       return api.post('/mensuration/createmensuration', fd);
     },
     onSuccess: () => {
@@ -132,7 +130,14 @@ export default function LeiturasCreate() {
         setSaved(false);
       }
     },
-    onError: () => toast.error('Erro ao salvar leitura'),
+    onError: (err: unknown) => {
+      const ax = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
+      const msg =
+        ax.response?.data?.errors?.imagem?.[0] ??
+        ax.response?.data?.message ??
+        'Erro ao salvar leitura';
+      toast.error(msg);
+    },
   });
 
   const currentUnit = (unidades as { id: number; unidade: string; condomino: string; endereco: string }[]).find(
@@ -216,7 +221,16 @@ export default function LeiturasCreate() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit((d) => createMutation.mutate({ data: d, imagem: imagemFile }))} className="space-y-4">
+        <form
+          onSubmit={handleSubmit((d) => {
+            if (!imagemFile) {
+              toast.error('A foto da leitura é obrigatória.');
+              return;
+            }
+            createMutation.mutate({ data: d, imagem: imagemFile });
+          })}
+          className="space-y-4"
+        >
           <input type="hidden" {...register('condominioId')} value={condominioId} />
           <input type="hidden" {...register('agrupamentoId')} value={agrupamentoId} />
           <input type="hidden" {...register('unidadeId')} />
@@ -240,7 +254,7 @@ export default function LeiturasCreate() {
           </div>
 
           <div className="flex gap-3">
-            <button type="submit" disabled={isSubmitting || !currentUnit} className="btn-primary">
+            <button type="submit" disabled={isSubmitting || !currentUnit || !imagemFile} className="btn-primary">
               {isSubmitting ? 'Salvando...' : 'Salvar e Avançar'}
               <ChevronRight size={16} />
             </button>
@@ -260,10 +274,10 @@ export default function LeiturasCreate() {
       <div className="card space-y-4">
         <div className="flex items-center gap-2 text-gray-800">
           <ImagePlus size={20} className="text-primary-600 shrink-0" />
-          <h2 className="font-semibold text-gray-800">Foto da leitura</h2>
+          <h2 className="font-semibold text-gray-800">Foto da leitura *</h2>
         </div>
         <p className="text-sm text-gray-500">
-          Opcional. Envie uma foto do hidrômetro para anexar à leitura (máx. 10&nbsp;MB).
+          Obrigatória. Foto do hidrômetro (PNG, JPG, WebP ou GIF, máx. 10&nbsp;MB).
         </p>
 
         <div className="relative rounded-lg border-2 border-dashed border-gray-200 bg-gray-50/80 min-h-[200px] flex flex-col items-center justify-center overflow-hidden">

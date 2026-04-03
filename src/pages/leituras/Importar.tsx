@@ -116,6 +116,20 @@ export default function LeiturasImport() {
       return;
     }
 
+    const missingPhoto = csvRows.filter((row) => !getImageFileForUnit(imageMap, row.unidade));
+    if (missingPhoto.length > 0) {
+      const sample = missingPhoto
+        .slice(0, 5)
+        .map((r) => r.unidade)
+        .join(', ');
+      toast.error(
+        `Cada leitura exige uma foto (nome do arquivo = unidade no CSV). Sem imagem para: ${sample}${
+          missingPhoto.length > 5 ? '…' : ''
+        }`
+      );
+      return;
+    }
+
     setLoading(true);
     setServerResults([]);
     setResumo(null);
@@ -155,9 +169,7 @@ export default function LeiturasImport() {
         form.append('leitura', String(row.leitura));
 
         const imgFile = getImageFileForUnit(imageMap, row.unidade);
-        if (imgFile) {
-          form.append('imagem', imgFile);
-        }
+        form.append('imagem', imgFile!);
 
         try {
           const res = await api.post<ServerRow>('/mensuration/import-row', form, {
@@ -280,7 +292,7 @@ export default function LeiturasImport() {
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-semibold text-gray-800 flex items-center gap-2">
                 <ImageIcon size={18} className="text-primary-600" />
-                Imagens
+                Imagens *
               </h2>
               <button
                 type="button"
@@ -300,9 +312,10 @@ export default function LeiturasImport() {
               onChange={onImagesChange}
             />
             <p className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 border border-gray-100">
-              <strong>Observação:</strong> as imagens serão vinculadas pelo <strong>nome do arquivo</strong> (sem extensão),
-              igual ao nome da unidade no CSV — ex.: <code className="text-xs bg-white px-1 rounded">A-101.jpg</code> para a
-              unidade <code className="text-xs bg-white px-1 rounded">A-101</code>. As fotos ficam salvas no{' '}
+              <strong>Obrigatório:</strong> uma imagem por linha do CSV. O vínculo é pelo <strong>nome do arquivo</strong>{' '}
+              (sem extensão), igual ao nome da unidade na planilha — ex.:{' '}
+              <code className="text-xs bg-white px-1 rounded">A-101.jpg</code> para a unidade{' '}
+              <code className="text-xs bg-white px-1 rounded">A-101</code>. As fotos ficam no{' '}
               <strong>storage do Laravel</strong> (<code className="text-xs">storage/app/public/mensurations/…</code>).
             </p>
             {previews.length === 0 ? (

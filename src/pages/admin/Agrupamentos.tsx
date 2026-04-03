@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ColumnDef } from '@tanstack/react-table';
@@ -22,14 +22,11 @@ interface Agrupamento {
 const schema = z.object({
   nome: z.string().min(1, 'Obrigatório'),
   condominioId: z.string().min(1, 'Selecione um condomínio'),
-  taxaMinima: z.preprocess(
-    (v) => {
-      if (v === '' || v === null || v === undefined) return 0;
-      const n = typeof v === 'number' ? v : Number(v);
-      return Number.isFinite(n) ? n : 0;
-    },
-    z.number().min(0, 'Informe um valor ≥ 0')
-  ),
+  /** string do input number ou número; vazio coagido para número */
+  taxaMinima: z.coerce
+    .number()
+    .refine((n) => Number.isFinite(n), { message: 'Informe um valor válido' })
+    .min(0, 'Informe um valor ≥ 0'),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -60,7 +57,7 @@ export default function Agrupamentos() {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as Resolver<FormData>,
     defaultValues: { taxaMinima: 0 },
   });
 
@@ -189,7 +186,7 @@ export default function Agrupamentos() {
               type="number"
               step="0.01"
               min="0"
-              {...register('taxaMinima', { valueAsNumber: true })}
+              {...register('taxaMinima')}
             />
             {errors.taxaMinima && <p className="text-red-500 text-xs mt-1">{errors.taxaMinima.message}</p>}
           </div>

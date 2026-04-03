@@ -1,20 +1,22 @@
 # Deploy SPA Vite (dist) → Hostinger via FTP.
 # Repositório: só o admin na raiz (sem pasta hidrus-frontend-admin).
 #
-# Secrets (DOIS tipos — não trocar):
+# Secrets / vars (DOIS tipos — não trocar):
 #   HOSTINGER_FTP_HOST = só servidor FTP (IP ou hostname). Ex.: 147.93.14.87
-#   HOSTINGER_FTP_REMOTE_PATH_ADMIN = pasta no servidor (com /). Ex.: domains/hidrusweb.com/public_html/admin
+#   vars  HOSTINGER_FTP_REMOTE_PATH_ADMIN_DEV  — pasta FTP para branch develop
+#   vars  HOSTINGER_FTP_REMOTE_PATH_ADMIN_PRD  — pasta FTP para branch main
 #   Colar "domains/.../admin" no HOST causa ENOTFOUND — isso não é um endereço DNS.
 #
 #   Também: HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD
 #     Hostinger: o site do domínio fica em domains/SEUDOMINIO.com/public_html/
 #     NÃO uses só "public_html/admin" na pasta remota — a partir de ~ duplica ~/public_html/...
-#   VITE_API_URL
-#   VITE_BASE_URL (opcional) = base do site se não for a raiz; ex: /admin (obrigatório se a URL for https://dominio.com/admin/)
+#   vars  VITE_API_URL_DEV  — URL da API no build da branch develop
+#   vars  VITE_API_URL_PRD  — URL da API no build da branch main
+#   secret VITE_BASE_URL (opcional) = base do site se não for a raiz; ex: /admin
 # Host: só IP ou hostname (sem ftp://). ENOTFOUND = valor inválido (ex.: colou ftp://147... ou caminho de pasta no host).
 #
 # Diagnóstico "o log diz sucesso mas não vejo ficheiros":
-#   O deploy foi para a pasta = secret HOSTINGER_FTP_REMOTE_PATH_ADMIN (relativa ao diretório inicial do FTP).
+#   O deploy foi para a pasta = var HOSTINGER_FTP_REMOTE_PATH_ADMIN_DEV ou _PRD (relativa ao FTP).
 #   No gestor da Hostinger procura ".ftp-deploy-sync-state.json" — está na MESMA pasta que o index.html enviado.
 #   Se o site é subdomínio (admin.dominio.com), o docroot pode ser domains/admin.dominio.com/public_html
 #   e NÃO public_html/admin do domínio principal.
@@ -24,7 +26,7 @@ name: Deploy Admin (Vite)
 
 on:
   push:
-    branches: [main, master]
+    branches: [develop, main]
     paths-ignore:
       - '**/*.md'
   workflow_dispatch:
@@ -49,10 +51,9 @@ jobs:
           FTP_HOST: ${{ secrets.HOSTINGER_FTP_HOST }}
           FTP_USER: ${{ secrets.HOSTINGER_FTP_USERNAME }}
           FTP_PASS: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
-          FTP_REMOTE: ${{ secrets.HOSTINGER_FTP_REMOTE_PATH_ADMIN }}
         run: |
-          if [ -z "$FTP_HOST" ] || [ -z "$FTP_USER" ] || [ -z "$FTP_PASS" ] || [ -z "$FTP_REMOTE" ]; then
-            echo "::error::Crie em Settings → Secrets → Actions: HOSTINGER_FTP_HOST, HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD, HOSTINGER_FTP_REMOTE_PATH_ADMIN. Cada repositório tem os seus secrets."
+          if [ -z "$FTP_HOST" ] || [ -z "$FTP_USER" ] || [ -z "$FTP_PASS" ]; then
+            echo "::error::Secrets: HOSTINGER_FTP_HOST, HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD."
             exit 1
           fi
           if [[ "$FTP_HOST" == *"://"* ]]; then
@@ -60,9 +61,49 @@ jobs:
             exit 1
           fi
           if [[ "$FTP_HOST" == *"/"* ]]; then
-            echo "::error::HOSTINGER_FTP_HOST não pode ser um caminho (não use /). Colaste provavelmente a pasta no secret errado: 'domains/.../public_html/admin' vai em HOSTINGER_FTP_REMOTE_PATH_ADMIN. No HOST vai só o IP ou ftp.seudominio.com."
+            echo "::error::HOSTINGER_FTP_HOST não pode ser um caminho. 'domains/.../admin' vai nas vars HOSTINGER_FTP_REMOTE_PATH_ADMIN_DEV / _PRD."
             exit 1
           fi
+
+      # main → PRD; develop (e outras) → DEV
+      - name: Pasta remota FTP por branch
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            T="${{ vars.HOSTINGER_FTP_REMOTE_PATH_ADMIN_PRD }}"
+            N="HOSTINGER_FTP_REMOTE_PATH_ADMIN_PRD"
+          else
+            T="${{ vars.HOSTINGER_FTP_REMOTE_PATH_ADMIN_DEV }}"
+            N="HOSTINGER_FTP_REMOTE_PATH_ADMIN_DEV"
+          fi
+          if [ -z "$T" ]; then
+            echo "::error::Defina a var $N (branch: ${GITHUB_REF_NAME})."
+            exit 1
+          fi
+          T=$(printf '%s' "$T" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          echo "HOSTINGER_FTP_REMOTE_PATH=$T" >> "$GITHUB_ENV"
+          echo "FTP → $T (${GITHUB_REF_NAME})"
+
+      - name: VITE_API_URL por branch
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            T="${{ vars.VITE_API_URL_PRD }}"
+            N="VITE_API_URL_PRD"
+          else
+            T="${{ vars.VITE_API_URL_DEV }}"
+            N="VITE_API_URL_DEV"
+          fi
+          if [ -z "$T" ]; then
+            echo "::error::Defina a var $N (branch: ${GITHUB_REF_NAME})."
+            exit 1
+          fi
+          T=$(printf '%s' "$T" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          D=_VITE_API_URL_VAL_
+          {
+            echo "VITE_API_URL<<$D"
+            printf '%s\n' "$T"
+            echo "$D"
+          } >> "$GITHUB_ENV"
+          echo "VITE_API_URL ok (${GITHUB_REF_NAME})"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -73,7 +114,7 @@ jobs:
 
       - name: Install & build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: ${{ env.VITE_API_URL }}
           VITE_BASE_URL: ${{ secrets.VITE_BASE_URL }}
         run: |
           npm ci
@@ -90,5 +131,5 @@ jobs:
           security: loose
           timeout: 300000
           local-dir: ./dist/
-          server-dir: ${{ secrets.HOSTINGER_FTP_REMOTE_PATH_ADMIN }}/
+          server-dir: ${{ env.HOSTINGER_FTP_REMOTE_PATH }}/
           dangerous-clean-slate: true

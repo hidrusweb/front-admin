@@ -92,11 +92,13 @@ export default function AdminLayout() {
         } transition-all duration-300 bg-gray-900 text-gray-100 flex flex-col shrink-0`}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center px-5 border-b border-gray-700">
-          <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center mr-3">
-            <span className="font-bold text-white text-sm">H</span>
-          </div>
-          <span className="font-bold text-lg">Hidrus</span>
+        <div className="h-16 flex items-center px-5 border-b border-gray-700 gap-3">
+          <img
+            src="/images/logo-hydrus-only-image.png"
+            alt=""
+            className="h-9 w-9 shrink-0 object-contain"
+          />
+          <span className="font-bold text-lg tracking-tight">HIDRUS</span>
         </div>
 
         {/* Nav */}

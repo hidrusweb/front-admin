@@ -1,13 +1,24 @@
 # Deploy SPA Vite (dist) → Hostinger via FTP.
 # Repositório: só o admin na raiz (sem pasta hidrus-frontend-admin).
 #
-# Secrets (criar NESTE repositório — não são herdados do repo backend):
-#   HOSTINGER_FTP_HOST, HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD
-#   HOSTINGER_FTP_REMOTE_PATH_ADMIN = pasta EXATA no FTP (ver FileZilla após login).
-#     Se quiseres ficheiros em .../public_html/admin/ → secret = public_html/admin (não só public_html).
+# Secrets (DOIS tipos — não trocar):
+#   HOSTINGER_FTP_HOST = só servidor FTP (IP ou hostname). Ex.: 147.93.14.87
+#   HOSTINGER_FTP_REMOTE_PATH_ADMIN = pasta no servidor (com /). Ex.: domains/hidrusweb.com/public_html/admin
+#   Colar "domains/.../admin" no HOST causa ENOTFOUND — isso não é um endereço DNS.
+#
+#   Também: HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD
+#     Hostinger: o site do domínio fica em domains/SEUDOMINIO.com/public_html/
+#     NÃO uses só "public_html/admin" na pasta remota — a partir de ~ duplica ~/public_html/...
 #   VITE_API_URL
 #   VITE_BASE_URL (opcional) = base do site se não for a raiz; ex: /admin (obrigatório se a URL for https://dominio.com/admin/)
-# Host: só IP ou hostname (sem ftp://)
+# Host: só IP ou hostname (sem ftp://). ENOTFOUND = valor inválido (ex.: colou ftp://147... ou caminho de pasta no host).
+#
+# Diagnóstico "o log diz sucesso mas não vejo ficheiros":
+#   O deploy foi para a pasta = secret HOSTINGER_FTP_REMOTE_PATH_ADMIN (relativa ao diretório inicial do FTP).
+#   No gestor da Hostinger procura ".ftp-deploy-sync-state.json" — está na MESMA pasta que o index.html enviado.
+#   Se o site é subdomínio (admin.dominio.com), o docroot pode ser domains/admin.dominio.com/public_html
+#   e NÃO public_html/admin do domínio principal.
+# dangerous-clean-slate: true apaga TUDO nessa pasta remota antes do upload — confirme o caminho antes de ativar.
 
 name: Deploy Admin (Vite)
 
@@ -41,7 +52,15 @@ jobs:
           FTP_REMOTE: ${{ secrets.HOSTINGER_FTP_REMOTE_PATH_ADMIN }}
         run: |
           if [ -z "$FTP_HOST" ] || [ -z "$FTP_USER" ] || [ -z "$FTP_PASS" ] || [ -z "$FTP_REMOTE" ]; then
-            echo "::error::Crie em Settings → Secrets → Actions: HOSTINGER_FTP_HOST, HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD, HOSTINGER_FTP_REMOTE_PATH_ADMIN (ex: public_html/admin). Cada repositório tem os seus secrets."
+            echo "::error::Crie em Settings → Secrets → Actions: HOSTINGER_FTP_HOST, HOSTINGER_FTP_USERNAME, HOSTINGER_FTP_PASSWORD, HOSTINGER_FTP_REMOTE_PATH_ADMIN. Cada repositório tem os seus secrets."
+            exit 1
+          fi
+          if [[ "$FTP_HOST" == *"://"* ]]; then
+            echo "::error::HOSTINGER_FTP_HOST não pode conter ftp:// ou http(s)://. Use só o IP (ex.: 147.93.14.87)."
+            exit 1
+          fi
+          if [[ "$FTP_HOST" == *"/"* ]]; then
+            echo "::error::HOSTINGER_FTP_HOST não pode ser um caminho (não use /). Colaste provavelmente a pasta no secret errado: 'domains/.../public_html/admin' vai em HOSTINGER_FTP_REMOTE_PATH_ADMIN. No HOST vai só o IP ou ftp.seudominio.com."
             exit 1
           fi
 
@@ -55,6 +74,7 @@ jobs:
       - name: Install & build
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_BASE_URL: ${{ secrets.VITE_BASE_URL }}
         run: |
           npm ci
           npm run build

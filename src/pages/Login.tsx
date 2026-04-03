@@ -51,10 +51,12 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-primary-700 to-primary-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-2xl">H</span>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-800">Hidrus Admin</h1>
+          <img
+            src="/images/logo-hydrus-horizontal.png"
+            alt="HIDRUS Serviços Gerais"
+            className="mx-auto h-16 w-auto max-w-[min(100%,320px)] object-contain mb-4"
+          />
+          <h1 className="text-xl font-bold text-slate-800 tracking-tight">HIDRUS Admin</h1>
           <p className="text-gray-500 text-sm mt-1">Acesso ao painel administrativo</p>
         </div>
 

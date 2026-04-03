@@ -76,7 +76,7 @@ export default function Dashboard() {
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Olá, {firstName}!</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Bem-vindo ao painel de controle Hidrus. Perfil: <strong>{role}</strong>
+          Bem-vindo ao painel de controle HIDRUS. Perfil: <strong>{role}</strong>
         </p>
       </div>
 

@@ -53,7 +53,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <img
             src="/images/logo-hydrus-horizontal.png"
-            alt="HIDRUS Serviços Gerais"
+            alt="HIDRUS Soluções Integradas"
             className="mx-auto h-16 w-auto max-w-[min(100%,320px)] object-contain mb-4"
           />
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">HIDRUS Admin</h1>

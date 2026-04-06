@@ -1,13 +1,27 @@
 export interface JwtPayload {
   sub: string;
-  email: string;
-  unique_name: string;
+  email?: string;
+  unique_name?: string;
   given_name?: string;
   family_name?: string;
   role: string | string[];
   nbf: number;
   exp: number;
   iat: number;
+}
+
+/** Nome para exibição a partir das claims do JWT (Nome/Sobrenome, e-mail ou login). */
+export function getUserDisplayName(u: JwtPayload | null | undefined): string {
+  if (!u) return 'Usuário';
+  const gn = (u.given_name ?? '').trim();
+  const fn = (u.family_name ?? '').trim();
+  if (gn && fn) return `${gn} ${fn}`;
+  if (gn) return gn;
+  const login = (u.unique_name ?? '').trim();
+  if (login) return login;
+  const em = (u.email ?? '').trim();
+  if (em) return em;
+  return 'Usuário';
 }
 
 export function parseJwt(token: string): JwtPayload | null {

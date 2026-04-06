@@ -20,16 +20,27 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className={`relative bg-white rounded-xl shadow-xl w-full mx-4 ${sizes[size]} max-h-[90vh] flex flex-col`}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-500">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/50"
+        aria-label="Fechar"
+        onClick={onClose}
+      />
+      <div
+        className={`relative bg-white shadow-xl w-full sm:mx-auto ${sizes[size]} max-h-[min(92dvh,100%)] sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-xl`}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 shrink-0 gap-2">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-800 truncate pr-2">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 touch-manipulation shrink-0"
+          >
             <X size={20} />
           </button>
         </div>
-        <div className="overflow-y-auto flex-1 p-4">{children}</div>
+        <div className="overflow-y-auto flex-1 p-4 min-h-0 overscroll-contain">{children}</div>
       </div>
     </div>
   );

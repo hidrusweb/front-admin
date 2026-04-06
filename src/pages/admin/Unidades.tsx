@@ -330,7 +330,7 @@ export default function Unidades() {
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar Unidade' : 'Nova Unidade'} size="xl">
         <form onSubmit={handleSubmit((d) => saveMutation.mutate(d))} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Condomínio *</label>
               <select className="input" {...register('condominioId')}>

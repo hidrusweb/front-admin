@@ -107,7 +107,7 @@ export default function LeiturasIndex() {
 
       <div className="card space-y-4">
         <h2 className="font-semibold text-gray-700">Filtros</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label className="label">Condomínio</label>
             <select className="input" value={condominioId} onChange={(e) => { setCondominioId(e.target.value); setAgrupamentoId(''); setUnidadeId(''); }}>

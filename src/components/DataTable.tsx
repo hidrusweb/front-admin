@@ -51,22 +51,22 @@ export default function DataTable<T>({
   });
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 min-w-0">
       <input
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
         placeholder={searchPlaceholder}
-        className="input max-w-xs"
+        className="input w-full sm:max-w-xs"
       />
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 -mx-1 px-1 sm:mx-0 sm:px-0 touch-pan-x">
+        <table className="w-full text-sm min-w-[640px] sm:min-w-0">
           <thead className="bg-gray-50">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer select-none"
+                    className="px-2 py-2 sm:px-4 sm:py-3 text-left font-semibold text-gray-600 cursor-pointer select-none whitespace-nowrap"
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     <div className="flex items-center gap-1">
@@ -91,7 +91,7 @@ export default function DataTable<T>({
           <tbody className="divide-y divide-gray-100">
             {table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={columns.length} className="px-3 py-8 text-center text-gray-400">
                   Nenhum registro encontrado.
                 </td>
               </tr>
@@ -99,7 +99,7 @@ export default function DataTable<T>({
               table.getRowModel().rows.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50">
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 text-gray-700">
+                    <td key={cell.id} className="px-2 py-2 sm:px-4 sm:py-3 text-gray-700 align-top">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -109,25 +109,29 @@ export default function DataTable<T>({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between text-sm text-gray-600">
-        <span>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-gray-600">
+        <span className="tabular-nums">
           Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()} —{' '}
           {table.getFilteredRowModel().rows.length} registros
         </span>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <button
+            type="button"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="p-1 rounded border disabled:opacity-40 hover:bg-gray-100"
+            className="p-2 rounded border disabled:opacity-40 hover:bg-gray-100 touch-manipulation"
+            aria-label="Página anterior"
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={18} />
           </button>
           <button
+            type="button"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="p-1 rounded border disabled:opacity-40 hover:bg-gray-100"
+            className="p-2 rounded border disabled:opacity-40 hover:bg-gray-100 touch-manipulation"
+            aria-label="Próxima página"
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={18} />
           </button>
         </div>
       </div>

@@ -255,7 +255,7 @@ export default function Usuarios() {
             <input type="email" autoComplete="off" className="input" {...register('email')} />
             {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Nome</label>
               <input className="input" {...register('nome')} />

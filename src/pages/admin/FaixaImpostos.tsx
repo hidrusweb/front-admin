@@ -190,7 +190,7 @@ export default function FaixaImpostos() {
             </select>
             {errors.tabelaId && <p className="text-red-500 text-xs mt-1">{errors.tabelaId.message}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="label">Nome *</label>
               <input className="input" {...register('nomeF')} />

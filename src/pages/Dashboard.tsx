@@ -225,7 +225,7 @@ export default function Dashboard() {
     isAdmin && (loadingCond || loadingCons || loadingUnits || loadingTab || loadingAgr || loadingLeiturasMes);
 
   return (
-    <div className="space-y-8 max-w-6xl">
+    <div className="space-y-8 w-full min-w-0 max-w-none">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Olá, {firstName}</h1>
         <p className="text-gray-600 text-sm sm:text-base mt-2 leading-relaxed">

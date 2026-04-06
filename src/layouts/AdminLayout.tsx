@@ -112,12 +112,12 @@ export default function AdminLayout() {
   }, [sidebarOpen]);
 
   return (
-    <div className="flex h-[100dvh] min-h-0 bg-gray-100 overflow-hidden">
+    <div className="admin-layout-shell flex h-[100dvh] min-h-0 bg-gray-100 overflow-hidden">
       {sidebarOpen && (
         <button
           type="button"
           aria-label="Fechar menu"
-          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-[1px] lg:hidden"
+          className="print:hidden fixed inset-0 z-30 bg-black/45 backdrop-blur-[1px] lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -125,7 +125,7 @@ export default function AdminLayout() {
       {/* Sidebar: drawer no mobile, coluna no desktop */}
       <aside
         id="admin-sidebar"
-        className={`flex flex-col shrink-0 bg-gray-900 text-gray-100 transition-[transform,width] duration-300 ease-out
+        className={`admin-layout-sidebar print:hidden flex flex-col shrink-0 bg-gray-900 text-gray-100 transition-[transform,width] duration-300 ease-out
           fixed z-40 inset-y-0 left-0 w-64 max-w-[min(16rem,88vw)]
           lg:static lg:z-auto lg:max-w-none
           ${sidebarOpen ? 'translate-x-0 lg:w-64' : '-translate-x-full lg:translate-x-0 lg:w-0 lg:min-w-0 lg:overflow-hidden'}`}
@@ -235,9 +235,9 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="admin-layout-maincol flex-1 flex flex-col min-w-0">
         {/* Topbar */}
-        <header className="h-14 sm:h-16 bg-white border-b border-gray-200 flex items-center gap-2 sm:gap-4 px-3 sm:px-4 shrink-0 min-w-0">
+        <header className="admin-layout-topbar h-14 sm:h-16 bg-white border-b border-gray-200 flex items-center gap-2 sm:gap-4 px-3 sm:px-4 shrink-0 min-w-0 print:hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen((o) => !o)}
@@ -251,7 +251,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6 min-w-0">
+        <main className="admin-layout-main flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6 min-w-0">
           <Outlet />
         </main>
       </div>

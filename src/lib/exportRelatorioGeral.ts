@@ -34,8 +34,14 @@ function slugifyFilename(s: string): string {
 
 function fmtDateBr(v: unknown): string {
   if (v == null || v === '') return '—';
-  const d = new Date(String(v));
-  return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('pt-BR');
+  const s = String(v).trim();
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (ymd) {
+    const [, y, m, d] = ymd;
+    return `${d}/${m}/${y}`;
+  }
+  const t = Date.parse(s);
+  return Number.isNaN(t) ? s : new Date(t).toLocaleDateString('pt-BR');
 }
 
 function num(r: Record<string, unknown>, ...keys: string[]): number {
@@ -106,7 +112,13 @@ const PDF_HEAD = [
   ],
 ];
 
-export function exportRelatorioGeralPdf(rows: GeneralReportRow[]): boolean {
+export type TabelaRelatorioExportOptions = {
+  titulo: string;
+  nomeArquivoPrefix: string;
+  linhasExtras?: string[];
+};
+
+function exportRelatorioTabelaPdf(rows: GeneralReportRow[], opt: TabelaRelatorioExportOptions): boolean {
   if (rows.length === 0) return false;
 
   const nome = rows[0]?.nomeCondominio || 'Condomínio';
@@ -115,15 +127,28 @@ export function exportRelatorioGeralPdf(rows: GeneralReportRow[]): boolean {
   const t = totals(rows);
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  let y = 12;
   doc.setFontSize(14);
-  doc.text('Relatório geral', 14, 12);
+  doc.setTextColor(0, 0, 0);
+  doc.text(opt.titulo, 14, y);
+  y += 6;
   doc.setFontSize(10);
-  doc.text(nome, 14, 18);
+  doc.text(nome, 14, y);
+  y += 5;
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Período: ${periodo}`, 14, 23);
-  if (prox) doc.text(prox, 14, 27);
-  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, prox ? 31 : 27);
+  doc.text(`Período: ${periodo}`, 14, y);
+  y += 4;
+  if (prox) {
+    doc.text(prox, 14, y);
+    y += 4;
+  }
+  for (const line of opt.linhasExtras ?? []) {
+    doc.text(line, 14, y);
+    y += 4;
+  }
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, y);
+  y += 6;
   doc.setTextColor(0, 0, 0);
 
   const body = rows.map((r) => [
@@ -151,7 +176,7 @@ export function exportRelatorioGeralPdf(rows: GeneralReportRow[]): boolean {
   ]);
 
   autoTable(doc, {
-    startY: prox ? 35 : 31,
+    startY: y,
     head: PDF_HEAD,
     body,
     styles: { fontSize: 7, cellPadding: 1 },
@@ -165,7 +190,104 @@ export function exportRelatorioGeralPdf(rows: GeneralReportRow[]): boolean {
     },
   });
 
-  doc.save(`relatorio-geral-${slugifyFilename(nome)}-${fileDateStamp()}.pdf`);
+  doc.save(`${opt.nomeArquivoPrefix}-${slugifyFilename(nome)}-${fileDateStamp()}.pdf`);
+  return true;
+}
+
+export function exportRelatorioGeralPdf(rows: GeneralReportRow[]): boolean {
+  return exportRelatorioTabelaPdf(rows, {
+    titulo: 'Relatório geral',
+    nomeArquivoPrefix: 'relatorio-geral',
+  });
+}
+
+function sortInformativoUnidades(rows: GeneralReportRow[]): GeneralReportRow[] {
+  return [...rows].sort((a, b) => (a.unidade || '').localeCompare(b.unidade || '', 'pt-BR', { numeric: true }));
+}
+
+function fmtConsumoInformativoM3(consumo: number): string {
+  const rounded = Math.round(consumo);
+  if (Math.abs(consumo - rounded) < 1e-6) return String(rounded);
+  return consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** PDF estilo legado: seções “acima do mínimo” (unidade + consumo) e “sem consumo” (só unidade). */
+export function exportRelatorioInformativoPdf(rows: GeneralReportRow[], consumoMinimo: number): boolean {
+  if (rows.length === 0) return false;
+
+  const meta = rows[0];
+  const nome = meta?.nomeCondominio || 'Condomínio';
+  const periodo = `${meta?.dataInicial ?? '—'} a ${meta?.dataFinal ?? '—'}`;
+  const prox = meta?.dataProximaLeitura ? `Próx. leitura: ${meta.dataProximaLeitura}` : '';
+
+  const com = sortInformativoUnidades(rows.filter((r) => r.consumo > 0));
+  const sem = sortInformativoUnidades(rows.filter((r) => r.consumo <= 0));
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  let y = 14;
+  doc.setFontSize(16);
+  doc.setTextColor(0, 0, 0);
+  doc.text('Relatório informativo', 14, y);
+  y += 7;
+  doc.setFontSize(11);
+  doc.text(nome, 14, y);
+  y += 5;
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
+  doc.text(`Leitura de ${periodo}`, 14, y);
+  y += 4;
+  if (prox) {
+    doc.text(prox, 14, y);
+    y += 4;
+  }
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, y);
+  y += 8;
+  doc.setTextColor(0, 0, 0);
+
+  const headCom = [['Unidade', 'Consumo (m³)']];
+  const bodyCom = com.map((r) => [r.unidade || '—', fmtConsumoInformativoM3(r.consumo)]);
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(
+    `Unidades com consumo acima de ${consumoMinimo} (m³) (Total de ${com.length} unidades)`,
+    14,
+    y
+  );
+  y += 6;
+  doc.setFont('helvetica', 'normal');
+
+  autoTable(doc, {
+    startY: y,
+    head: headCom,
+    body: bodyCom.length ? bodyCom : [['Nenhuma unidade nesta faixa.', '']],
+    styles: { fontSize: 9, cellPadding: 1.5 },
+    headStyles: { fillColor: [55, 65, 81] },
+    margin: { left: 14, right: 14 },
+    theme: 'striped',
+  });
+
+  y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 10;
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Unidades sem consumo (Total de ${sem.length} unidades)`, 14, y);
+  y += 6;
+  doc.setFont('helvetica', 'normal');
+
+  const bodySem = sem.map((r) => [r.unidade || '—']);
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Unidade']],
+    body: bodySem.length ? bodySem : [['Nenhuma']],
+    styles: { fontSize: 9, cellPadding: 1.5 },
+    headStyles: { fillColor: [55, 65, 81] },
+    margin: { left: 14, right: 14 },
+    theme: 'striped',
+  });
+
+  doc.save(`relatorio-informativo-${slugifyFilename(nome)}-${fileDateStamp()}.pdf`);
   return true;
 }
 
@@ -181,19 +303,30 @@ const XLS_HEAD = [
   'Hidrômetro',
 ];
 
-export function exportRelatorioGeralExcel(rows: GeneralReportRow[]): boolean {
+type ExcelMeta = {
+  titulo: string;
+  nomeArquivoPrefix: string;
+  linhasExtras?: [string, string][];
+};
+
+function exportRelatorioTabelaExcel(rows: GeneralReportRow[], meta: ExcelMeta): boolean {
   if (rows.length === 0) return false;
 
   const nome = rows[0]?.nomeCondominio || 'Condomínio';
   const t = totals(rows);
 
-  const aoa: (string | number)[][] = [
-    ['Relatório geral'],
+  const headerBlock: (string | number)[][] = [
+    [meta.titulo],
     ['Condomínio', nome],
     ['Período', `${rows[0]?.dataInicial ?? ''} a ${rows[0]?.dataFinal ?? ''}`],
     ['Próxima leitura', rows[0]?.dataProximaLeitura ?? ''],
+    ...(meta.linhasExtras ?? []).map(([a, b]) => [a, b]),
     ['Gerado em', new Date().toLocaleString('pt-BR')],
     [],
+  ];
+
+  const aoa: (string | number)[][] = [
+    ...headerBlock,
     XLS_HEAD,
     ...rows.map((r) => [
       r.unidade,
@@ -221,8 +354,47 @@ export function exportRelatorioGeralExcel(rows: GeneralReportRow[]): boolean {
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Relatório geral');
+  const sheetName = meta.titulo.length > 25 ? 'Relatório' : meta.titulo;
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
-  XLSX.writeFile(wb, `relatorio-geral-${slugifyFilename(nome)}-${fileDateStamp()}.xlsx`);
+  XLSX.writeFile(wb, `${meta.nomeArquivoPrefix}-${slugifyFilename(nome)}-${fileDateStamp()}.xlsx`);
+  return true;
+}
+
+export function exportRelatorioGeralExcel(rows: GeneralReportRow[]): boolean {
+  return exportRelatorioTabelaExcel(rows, {
+    titulo: 'Relatório geral',
+    nomeArquivoPrefix: 'relatorio-geral',
+  });
+}
+
+export function exportRelatorioInformativoExcel(rows: GeneralReportRow[], consumoMinimo: number): boolean {
+  if (rows.length === 0) return false;
+
+  const meta = rows[0];
+  const nome = meta?.nomeCondominio || 'Condomínio';
+  const com = sortInformativoUnidades(rows.filter((r) => r.consumo > 0));
+  const sem = sortInformativoUnidades(rows.filter((r) => r.consumo <= 0));
+
+  const aoa: (string | number)[][] = [
+    ['Relatório informativo'],
+    ['Condomínio', nome],
+    ['Período', `${meta?.dataInicial ?? ''} a ${meta?.dataFinal ?? ''}`],
+    ['Próxima leitura', meta?.dataProximaLeitura ?? ''],
+    ['Gerado em', new Date().toLocaleString('pt-BR')],
+    [],
+    [`Unidades com consumo acima de ${consumoMinimo} (m³) (Total de ${com.length} unidades)`],
+    ['Unidade', 'Consumo (m³)'],
+    ...com.map((r) => [r.unidade, r.consumo]),
+    [],
+    [`Unidades sem consumo (Total de ${sem.length} unidades)`],
+    ['Unidade'],
+    ...sem.map((r) => [r.unidade]),
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Informativo');
+  XLSX.writeFile(wb, `relatorio-informativo-${slugifyFilename(nome)}-${fileDateStamp()}.xlsx`);
   return true;
 }

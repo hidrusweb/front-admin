@@ -1,0 +1,9 @@
+# SPA (React Router): qualquer rota que não seja ficheiro/pasta real serve o index.html.
+# Coloque este ficheiro na mesma pasta do index.html no servidor (ex.: public_html/admin/).
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . index.html [L]
+</IfModule>

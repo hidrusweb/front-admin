@@ -155,7 +155,7 @@ export default function Condominios() {
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar Condomínio' : 'Novo Condomínio'} size="lg">
         <form onSubmit={handleSubmit((d) => saveMutation.mutate(d))} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Nome *</label>
               <input className="input" {...register('nome')} />

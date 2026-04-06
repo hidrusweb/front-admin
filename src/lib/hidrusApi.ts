@@ -66,6 +66,7 @@ export function mapUnidade(raw: unknown) {
     agrupamentoNome: String(
       (u.grouping as { Nome?: string } | undefined)?.Nome ?? u.agrupamentoNome ?? ''
     ),
+    ativo: Boolean(u.Status ?? u.ativo ?? true),
   };
 }
 
@@ -91,6 +92,7 @@ export function mapConsumo(raw: unknown) {
           : '',
     taxaMinima: Number(c.TaxaMinima ?? c.taxaMinima ?? 0),
     valorAreaComum: Number(c.ValorAreaComum ?? c.valorAreaComum ?? 0),
+    ativo: Boolean(c.Status ?? c.status ?? true),
   };
 }
 
@@ -99,6 +101,7 @@ export function mapTabelaImposto(raw: unknown) {
   return {
     id: Number(pickId(t)),
     nome: String(t.Nome ?? t.nome ?? ''),
+    ativo: Boolean(t.Status ?? t.ativo ?? true),
   };
 }
 

@@ -3,6 +3,9 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     @apply bg-gray-100 text-gray-800;
     font-family: Inter, system-ui, sans-serif;
@@ -23,13 +26,13 @@
     @apply btn bg-red-600 text-white hover:bg-red-700;
   }
   .input {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
   }
   .label {
     @apply block text-sm font-medium text-gray-700 mb-1;
   }
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
+    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6;
   }
   .badge-active {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800;
@@ -37,4 +40,100 @@
   .badge-inactive {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800;
   }
+}
+
+/*
+ * Impressão no admin: o shell usa h-[100dvh] + overflow-hidden e o <main> overflow-y-auto.
+ * Sem isto, o navegador só imprime o recorte visível do scroll (demonstrativo “some”).
+ */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .admin-layout-shell {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .admin-layout-maincol {
+    display: block !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  .admin-layout-main {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    flex: none !important;
+    padding: 0.5rem !important;
+  }
+}
+
+/* Demonstrativo de conta (paridade com hidrus-frontend-contas) */
+@media print {
+  /*
+   * Gráfico de barras: sem isto o Chrome omite gradientes/fundo; overflow-hidden corta barras absolutas.
+   */
+  .demonstrativo-print-root,
+  .demonstrativo-print-root * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .demonstrativo-chart-card {
+    overflow: visible !important;
+  }
+
+  .demonstrativo-chart-card > .flex {
+    overflow: visible !important;
+  }
+
+  .demonstrativo-chart-stack {
+    overflow: visible !important;
+  }
+
+  .demonstrativo-chart-plot {
+    overflow: visible !important;
+    min-height: 9rem !important;
+    height: 9rem !important;
+  }
+
+  .demonstrativo-bill-break {
+    break-after: page;
+  }
+  .demonstrativo-bill-break:last-child {
+    break-after: auto;
+  }
+  .demonstrativo-print-root .print-a4-tight {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  .demonstrativo-print-root .print-table-compact th,
+  .demonstrativo-print-root .print-table-compact td {
+    padding: 0.2rem 0.35rem;
+    font-size: 8px;
+  }
+  .demonstrativo-print-root .print-photo-max {
+    max-height: 5rem;
+  }
+  .demonstrativo-print-root .print-chart-h {
+    height: 9rem;
+  }
+  .demonstrativo-print-root .print-keep-together {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+.demonstrativo-print-root .print-chart-h {
+  height: 11rem;
 }

@@ -47,6 +47,11 @@
  * Sem isto, o navegador só imprime o recorte visível do scroll (demonstrativo “some”).
  */
 @media print {
+  .hydrus-print-logo {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
   html,
   body {
     height: auto !important;

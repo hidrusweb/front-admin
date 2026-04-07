@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { logoHydrusHorizontalAbsoluteUrl } from './branding';
 
 export type GeneralReportRow = {
   unidade: string;
@@ -17,6 +18,154 @@ export type GeneralReportRow = {
   dataFinal: string;
   dataProximaLeitura: string;
 };
+
+/** Resumo do relatório geral (legado: formulário + tabela “Lixeiras”), opcional no export. */
+export type RelatorioGeralResumoExport = {
+  dataCaesb?: string;
+  totalConsumo?: number;
+  totalCaesb?: number;
+  leituraAnteriorCondominio?: number;
+  leituraAtualCondominio?: number;
+  lixeiras: Array<{
+    agrupamento: string;
+    leituraAnterior: number;
+    leituraAtual: number;
+    consumo: number;
+  }>;
+};
+
+function resumoExportTemConteudo(r: RelatorioGeralResumoExport): boolean {
+  if (r.lixeiras.length > 0) return true;
+  if (r.dataCaesb != null && String(r.dataCaesb).trim() !== '') return true;
+  if (r.totalConsumo != null && r.totalConsumo !== 0) return true;
+  if (r.totalCaesb != null && r.totalCaesb !== 0) return true;
+  if (r.leituraAnteriorCondominio != null && r.leituraAnteriorCondominio !== 0) return true;
+  if (r.leituraAtualCondominio != null && r.leituraAtualCondominio !== 0) return true;
+  return false;
+}
+
+function appendResumoPdf(doc: jsPDF, resumo: RelatorioGeralResumoExport): void {
+  if (!resumoExportTemConteudo(resumo)) return;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let y = ((doc as any).lastAutoTable?.finalY as number | undefined) ?? 40;
+  y += 10;
+  const pageH = doc.internal.pageSize.getHeight();
+  const ensureSpace = (need: number) => {
+    if (y + need > pageH - 14) {
+      doc.addPage();
+      y = 14;
+    }
+  };
+
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  ensureSpace(8);
+  doc.text('Resumo', 14, y);
+  y += 6;
+
+  doc.setFontSize(9);
+  doc.setTextColor(60, 60, 60);
+  ensureSpace(20);
+  doc.text('Conta CAESB', 14, y);
+  y += 5;
+  autoTable(doc, {
+    startY: y,
+    head: [['Mês/ano', 'Consumo total (m³)', 'Valor total (R$)']],
+    body: [
+      [
+        resumo.dataCaesb?.trim() || '—',
+        resumo.totalConsumo != null ? String(resumo.totalConsumo) : '—',
+        resumo.totalCaesb != null
+          ? resumo.totalCaesb.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          : '—',
+      ],
+    ],
+    styles: { fontSize: 8, cellPadding: 1.2 },
+    headStyles: { fillColor: [30, 64, 120] },
+    margin: { left: 14, right: 14 },
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  y = ((doc as any).lastAutoTable?.finalY as number) + 8;
+
+  if (resumo.lixeiras.length > 0) {
+    ensureSpace(16);
+    doc.setFontSize(9);
+    doc.text('Lixeiras', 14, y);
+    y += 4;
+    const tot = resumo.lixeiras.reduce((a, l) => a + l.consumo, 0);
+    autoTable(doc, {
+      startY: y,
+      head: [['Bloco', 'Leitura anterior', 'Leitura atual', 'Consumo (m³)']],
+      body: [
+            ...resumo.lixeiras.map((l) => [
+          l.agrupamento,
+          String(l.leituraAnterior),
+          String(l.leituraAtual),
+          formatConsumoRelatorioGeralM3(l.consumo),
+        ]),
+        ['', '', 'Total', formatConsumoRelatorioGeralM3(tot)],
+      ],
+      styles: { fontSize: 8, cellPadding: 1.2 },
+      headStyles: { fillColor: [30, 64, 120] },
+      margin: { left: 14, right: 14 },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.row.index === resumo.lixeiras.length) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [240, 244, 250];
+        }
+      },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    y = ((doc as any).lastAutoTable?.finalY as number) + 8;
+  }
+
+  ensureSpace(22);
+  doc.setFontSize(9);
+  doc.text('Hidrômetro geral', 14, y);
+  y += 4;
+  const ant = resumo.leituraAnteriorCondominio ?? 0;
+  const atu = resumo.leituraAtualCondominio ?? 0;
+  autoTable(doc, {
+    startY: y,
+    head: [['Leitura anterior', 'Leitura atual', 'Consumo (m³)']],
+    body: [[String(ant), String(atu), formatConsumoRelatorioGeralM3(atu - ant)]],
+    styles: { fontSize: 8, cellPadding: 1.2 },
+    headStyles: { fillColor: [30, 64, 120] },
+    margin: { left: 14, right: 14 },
+  });
+}
+
+/** Logo para PDF (mesma arte da tela: `public/images/logo-hydrus-horizontal.png`). */
+async function loadHydrusLogoForPdf(
+  maxWidthMm: number
+): Promise<{ dataUrl: string; w: number; h: number } | null> {
+  try {
+    const url = logoHydrusHorizontalAbsoluteUrl();
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result as string);
+      fr.onerror = () => reject(new Error('read'));
+      fr.readAsDataURL(blob);
+    });
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('img'));
+      img.src = dataUrl;
+    });
+    const w = maxWidthMm;
+    const nw = img.naturalWidth || img.width;
+    const nh = img.naturalHeight || img.height;
+    const h = nw > 0 ? (nh / nw) * w : maxWidthMm * 0.25;
+    return { dataUrl, w, h };
+  } catch {
+    return null;
+  }
+}
 
 function fileDateStamp(): string {
   const d = new Date();
@@ -63,6 +212,19 @@ function str(r: Record<string, unknown>, ...keys: string[]): string {
 /**
  * Normaliza o JSON do endpoint GET /reports/general/consumo/.../tabela/...
  */
+/** Consumo em m³: inteiro sem decimais (ex.: 7); frações só quando necessário. */
+export function formatConsumoRelatorioGeralM3(n: number): string {
+  const r = Math.round(n);
+  if (Math.abs(n - r) < 1e-6) return String(r);
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+/** Valor numérico para planilha: inteiro quando próximo de inteiro. */
+function consumoRelatorioGeralCellValue(n: number): number {
+  const r = Math.round(n);
+  return Math.abs(n - r) < 1e-6 ? r : n;
+}
+
 export function parseGeneralReportApi(data: unknown): GeneralReportRow[] {
   if (!Array.isArray(data)) return [];
   return data.map((item) => {
@@ -100,15 +262,12 @@ function totals(rows: GeneralReportRow[]) {
 
 const PDF_HEAD = [
   [
+    'Ordem',
     'Unidade',
     'Leit. ant.',
     'Leit. atual',
     'Consumo (m³)',
-    'Val. excedente',
-    'Tar. conting.',
-    'Área comum',
     'Valor a pagar',
-    'Hidrômetro',
   ],
 ];
 
@@ -116,9 +275,13 @@ export type TabelaRelatorioExportOptions = {
   titulo: string;
   nomeArquivoPrefix: string;
   linhasExtras?: string[];
+  resumo?: RelatorioGeralResumoExport;
 };
 
-function exportRelatorioTabelaPdf(rows: GeneralReportRow[], opt: TabelaRelatorioExportOptions): boolean {
+async function exportRelatorioTabelaPdf(
+  rows: GeneralReportRow[],
+  opt: TabelaRelatorioExportOptions
+): Promise<boolean> {
   if (rows.length === 0) return false;
 
   const nome = rows[0]?.nomeCondominio || 'Condomínio';
@@ -126,53 +289,61 @@ function exportRelatorioTabelaPdf(rows: GeneralReportRow[], opt: TabelaRelatorio
   const prox = rows[0]?.dataProximaLeitura ? `Próx. leitura: ${rows[0].dataProximaLeitura}` : '';
   const t = totals(rows);
 
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  let y = 12;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const m = 14;
+  const y0 = 12;
+  const pageW = doc.internal.pageSize.getWidth();
+  const textRightX = pageW - m;
+
+  const logo = await loadHydrusLogoForPdf(48);
+  let logoBottom = y0;
+  if (logo) {
+    doc.addImage(logo.dataUrl, 'PNG', m, y0, logo.w, logo.h);
+    logoBottom = y0 + logo.h;
+  }
+
+  let ly = y0 + 5;
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
-  doc.text(opt.titulo, 14, y);
-  y += 6;
+  doc.text(opt.titulo, textRightX, ly, { align: 'right' });
+  ly += 6;
   doc.setFontSize(10);
-  doc.text(nome, 14, y);
-  y += 5;
+  doc.text(nome, textRightX, ly, { align: 'right' });
+  ly += 5;
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Período: ${periodo}`, 14, y);
-  y += 4;
+  doc.text(`Período: ${periodo}`, textRightX, ly, { align: 'right' });
+  ly += 4;
   if (prox) {
-    doc.text(prox, 14, y);
-    y += 4;
+    doc.text(prox, textRightX, ly, { align: 'right' });
+    ly += 4;
   }
   for (const line of opt.linhasExtras ?? []) {
-    doc.text(line, 14, y);
-    y += 4;
+    doc.text(line, textRightX, ly, { align: 'right' });
+    ly += 4;
   }
-  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, y);
-  y += 6;
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, textRightX, ly, { align: 'right' });
+  ly += 2;
   doc.setTextColor(0, 0, 0);
 
-  const body = rows.map((r) => [
+  let y = Math.max(logoBottom, ly) + 6;
+
+  const body = rows.map((r, i) => [
+    String(i + 1),
     r.unidade || '—',
     r.leituraAnterior.toLocaleString('pt-BR'),
     r.leituraAtual.toLocaleString('pt-BR'),
-    r.consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    r.valorExcedente.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-    r.tarifaContingencia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-    r.valorAreaComum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+    formatConsumoRelatorioGeralM3(r.consumo),
     r.valorPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-    r.hidrometro || '—',
   ]);
 
   body.push([
     'Totais',
     '',
     '',
-    t.consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    t.valorExcedente.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-    t.tarifaContingencia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-    t.valorAreaComum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-    t.valorPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
     '',
+    formatConsumoRelatorioGeralM3(t.consumo),
+    t.valorPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
   ]);
 
   autoTable(doc, {
@@ -190,14 +361,22 @@ function exportRelatorioTabelaPdf(rows: GeneralReportRow[], opt: TabelaRelatorio
     },
   });
 
+  if (opt.resumo) {
+    appendResumoPdf(doc, opt.resumo);
+  }
+
   doc.save(`${opt.nomeArquivoPrefix}-${slugifyFilename(nome)}-${fileDateStamp()}.pdf`);
   return true;
 }
 
-export function exportRelatorioGeralPdf(rows: GeneralReportRow[]): boolean {
+export async function exportRelatorioGeralPdf(
+  rows: GeneralReportRow[],
+  resumo?: RelatorioGeralResumoExport
+): Promise<boolean> {
   return exportRelatorioTabelaPdf(rows, {
     titulo: 'Relatório geral',
     nomeArquivoPrefix: 'relatorio-geral',
+    resumo,
   });
 }
 
@@ -211,8 +390,56 @@ function fmtConsumoInformativoM3(consumo: number): string {
   return consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Listas extras do resumo informativo (brief). */
+export type RelatorioInformativoResumoExport = {
+  unidadesVoltando: string[];
+  unidadesAguaNoRelogio: string[];
+  unidadesVazamento: string[];
+};
+
+function appendInformativoResumoPdf(doc: jsPDF, resumo: RelatorioInformativoResumoExport): void {
+  const sections: { title: string; items: string[] }[] = [
+    { title: 'Unidades com hidrômetro voltando', items: resumo.unidadesVoltando },
+    { title: 'Unidades com água no relógio', items: resumo.unidadesAguaNoRelogio },
+    { title: 'Unidades com vazamento', items: resumo.unidadesVazamento },
+  ];
+
+  let y =
+    (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 40;
+  y += 8;
+  const pageH = doc.internal.pageSize.getHeight();
+
+  for (const s of sections) {
+    if (y > pageH - 30) {
+      doc.addPage();
+      y = 14;
+    }
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${s.title} (Total de ${s.items.length} unidades)`, 14, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    autoTable(doc, {
+      startY: y,
+      head: [['Unidade']],
+      body: s.items.length ? s.items.map((u) => [u]) : [['Nenhuma']],
+      styles: { fontSize: 9, cellPadding: 1.5 },
+      headStyles: { fillColor: [55, 65, 81] },
+      margin: { left: 14, right: 14 },
+      theme: 'striped',
+    });
+    y = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y;
+    y += 8;
+  }
+}
+
 /** PDF estilo legado: seções “acima do mínimo” (unidade + consumo) e “sem consumo” (só unidade). */
-export function exportRelatorioInformativoPdf(rows: GeneralReportRow[], consumoMinimo: number): boolean {
+export async function exportRelatorioInformativoPdf(
+  rows: GeneralReportRow[],
+  consumoMinimo: number,
+  resumo?: RelatorioInformativoResumoExport
+): Promise<boolean> {
   if (rows.length === 0) return false;
 
   const meta = rows[0];
@@ -224,25 +451,39 @@ export function exportRelatorioInformativoPdf(rows: GeneralReportRow[], consumoM
   const sem = sortInformativoUnidades(rows.filter((r) => r.consumo <= 0));
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  let y = 14;
+  const m = 14;
+  const y0 = 12;
+  const pageW = doc.internal.pageSize.getWidth();
+  const textRightX = pageW - m;
+
+  const logo = await loadHydrusLogoForPdf(48);
+  let logoBottom = y0;
+  if (logo) {
+    doc.addImage(logo.dataUrl, 'PNG', m, y0, logo.w, logo.h);
+    logoBottom = y0 + logo.h;
+  }
+
+  let ly = y0 + 5;
   doc.setFontSize(16);
   doc.setTextColor(0, 0, 0);
-  doc.text('Relatório informativo', 14, y);
-  y += 7;
+  doc.text('Relatório informativo', textRightX, ly, { align: 'right' });
+  ly += 7;
   doc.setFontSize(11);
-  doc.text(nome, 14, y);
-  y += 5;
+  doc.text(nome, textRightX, ly, { align: 'right' });
+  ly += 5;
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Leitura de ${periodo}`, 14, y);
-  y += 4;
+  doc.text(`Leitura de ${periodo}`, textRightX, ly, { align: 'right' });
+  ly += 4;
   if (prox) {
-    doc.text(prox, 14, y);
-    y += 4;
+    doc.text(prox, textRightX, ly, { align: 'right' });
+    ly += 4;
   }
-  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, y);
-  y += 8;
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, textRightX, ly, { align: 'right' });
+  ly += 2;
   doc.setTextColor(0, 0, 0);
+
+  let y = Math.max(logoBottom, ly) + 8;
 
   const headCom = [['Unidade', 'Consumo (m³)']];
   const bodyCom = com.map((r) => [r.unidade || '—', fmtConsumoInformativoM3(r.consumo)]);
@@ -287,26 +528,28 @@ export function exportRelatorioInformativoPdf(rows: GeneralReportRow[], consumoM
     theme: 'striped',
   });
 
+  if (resumo) {
+    appendInformativoResumoPdf(doc, resumo);
+  }
+
   doc.save(`relatorio-informativo-${slugifyFilename(nome)}-${fileDateStamp()}.pdf`);
   return true;
 }
 
 const XLS_HEAD = [
+  'Ordem',
   'Unidade',
   'Leitura anterior',
   'Leitura atual',
   'Consumo (m³)',
-  'Valor excedente (R$)',
-  'Tarifa contingência (R$)',
-  'Valor área comum (R$)',
   'Valor a pagar (R$)',
-  'Hidrômetro',
 ];
 
 type ExcelMeta = {
   titulo: string;
   nomeArquivoPrefix: string;
   linhasExtras?: [string, string][];
+  resumo?: RelatorioGeralResumoExport;
 };
 
 function exportRelatorioTabelaExcel(rows: GeneralReportRow[], meta: ExcelMeta): boolean {
@@ -328,29 +571,57 @@ function exportRelatorioTabelaExcel(rows: GeneralReportRow[], meta: ExcelMeta): 
   const aoa: (string | number)[][] = [
     ...headerBlock,
     XLS_HEAD,
-    ...rows.map((r) => [
+    ...rows.map((r, i) => [
+      i + 1,
       r.unidade,
       r.leituraAnterior,
       r.leituraAtual,
-      r.consumo,
-      r.valorExcedente,
-      r.tarifaContingencia,
-      r.valorAreaComum,
+      consumoRelatorioGeralCellValue(r.consumo),
       r.valorPagar,
-      r.hidrometro || '',
     ]),
     [
       'Totais',
       '',
       '',
-      t.consumo,
-      t.valorExcedente,
-      t.tarifaContingencia,
-      t.valorAreaComum,
-      t.valorPagar,
       '',
+      consumoRelatorioGeralCellValue(t.consumo),
+      t.valorPagar,
     ],
   ];
+
+  if (meta.resumo && resumoExportTemConteudo(meta.resumo)) {
+    const rx = meta.resumo;
+    aoa.push(
+      [],
+      ['Resumo'],
+      ['Conta CAESB — mês/ano', rx.dataCaesb?.trim() ?? ''],
+      ['Conta CAESB — consumo total (m³)', rx.totalConsumo ?? ''],
+      ['Conta CAESB — valor total (R$)', rx.totalCaesb ?? ''],
+      []
+    );
+    if (rx.lixeiras.length > 0) {
+      aoa.push(['Lixeiras'], ['Bloco', 'Leitura anterior', 'Leitura atual', 'Consumo (m³)']);
+      for (const l of rx.lixeiras) {
+        aoa.push([l.agrupamento, l.leituraAnterior, l.leituraAtual, l.consumo]);
+      }
+      aoa.push([
+        '',
+        '',
+        'Total',
+        rx.lixeiras.reduce((a, l) => a + l.consumo, 0),
+      ]);
+      aoa.push([]);
+    }
+    aoa.push(
+      ['Hidrômetro geral'],
+      ['Leitura anterior', 'Leitura atual', 'Consumo (m³)'],
+      [
+        rx.leituraAnteriorCondominio ?? 0,
+        rx.leituraAtualCondominio ?? 0,
+        (rx.leituraAtualCondominio ?? 0) - (rx.leituraAnteriorCondominio ?? 0),
+      ]
+    );
+  }
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const wb = XLSX.utils.book_new();
@@ -361,14 +632,22 @@ function exportRelatorioTabelaExcel(rows: GeneralReportRow[], meta: ExcelMeta): 
   return true;
 }
 
-export function exportRelatorioGeralExcel(rows: GeneralReportRow[]): boolean {
+export function exportRelatorioGeralExcel(
+  rows: GeneralReportRow[],
+  resumo?: RelatorioGeralResumoExport
+): boolean {
   return exportRelatorioTabelaExcel(rows, {
     titulo: 'Relatório geral',
     nomeArquivoPrefix: 'relatorio-geral',
+    resumo,
   });
 }
 
-export function exportRelatorioInformativoExcel(rows: GeneralReportRow[], consumoMinimo: number): boolean {
+export function exportRelatorioInformativoExcel(
+  rows: GeneralReportRow[],
+  consumoMinimo: number,
+  resumo?: RelatorioInformativoResumoExport
+): boolean {
   if (rows.length === 0) return false;
 
   const meta = rows[0];
@@ -391,6 +670,26 @@ export function exportRelatorioInformativoExcel(rows: GeneralReportRow[], consum
     ['Unidade'],
     ...sem.map((r) => [r.unidade]),
   ];
+
+  if (resumo) {
+    const blocos: { titulo: string; items: string[] }[] = [
+      {
+        titulo: `Unidades com hidrômetro voltando (Total de ${resumo.unidadesVoltando.length} unidades)`,
+        items: resumo.unidadesVoltando,
+      },
+      {
+        titulo: `Unidades com água no relógio (Total de ${resumo.unidadesAguaNoRelogio.length} unidades)`,
+        items: resumo.unidadesAguaNoRelogio,
+      },
+      {
+        titulo: `Unidades com vazamento (Total de ${resumo.unidadesVazamento.length} unidades)`,
+        items: resumo.unidadesVazamento,
+      },
+    ];
+    for (const b of blocos) {
+      aoa.push([], [b.titulo], ['Unidade'], ...(b.items.length ? b.items.map((u) => [u]) : [['Nenhuma']]));
+    }
+  }
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const wb = XLSX.utils.book_new();

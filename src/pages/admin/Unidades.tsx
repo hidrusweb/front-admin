@@ -215,12 +215,12 @@ export default function Unidades() {
     onError: () => toast.error('Erro ao remover unidade'),
   });
 
-  const exportarCondominosPdf = () => {
+  const exportarCondominosPdf = async () => {
     if (!unidades.length) {
       toast.error('Não há condôminos na listagem para exportar.');
       return;
     }
-    const ok = exportCondominosPdf(
+    const ok = await exportCondominosPdf(
       unidades.map((u) => ({
         condominioNome: u.condominioNome ?? '',
         agrupamentoNome: u.agrupamentoNome ?? '',
@@ -311,7 +311,7 @@ export default function Unidades() {
           </div>
           <button
             type="button"
-            onClick={exportarCondominosPdf}
+            onClick={() => void exportarCondominosPdf()}
             className="btn-secondary py-2 px-3 text-sm inline-flex items-center gap-2"
             disabled={isLoading || unidades.length === 0}
             title="Exporta a listagem atual (condôminos / unidades filtradas)"

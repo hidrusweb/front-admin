@@ -7,7 +7,6 @@ import { hasRole } from '../../lib/auth';
 import {
   exportRelatorioGeralExcel,
   exportRelatorioGeralPdf,
-  exportRelatorioInformativoExcel,
   exportRelatorioInformativoPdf,
   formatConsumoRelatorioGeralM3,
   formatRelatorioGeralTarifaOuExcedente,
@@ -551,7 +550,7 @@ export default function Relatorios() {
             }
           }
         }
-        toast.success('Relatório gerado. Exporte em PDF ou Excel.');
+        toast.success('Relatório gerado. Exporte em PDF.');
       } else if (type === 'demonstrativo') {
         const c = consumoSelecionado!;
         const ids = unidadesDemonstrativoFiltradas
@@ -601,12 +600,13 @@ export default function Relatorios() {
     else toast.error('Não há linhas para exportar.');
   };
 
-  const handleExportExcelGeral = () => {
+  const handleExportExcelGeral = async () => {
     if (generalRows.length === 0) {
       toast.error('Gere o relatório geral antes de exportar.');
       return;
     }
-    if (exportRelatorioGeralExcel(generalRows, resumoGeralExport)) toast.success('Planilha baixada.');
+    const ok = await exportRelatorioGeralExcel(generalRows, resumoGeralExport);
+    if (ok) toast.success('Planilha baixada.');
     else toast.error('Não há linhas para exportar.');
   };
 
@@ -742,20 +742,6 @@ export default function Relatorios() {
       resumoInformativoExport
     );
     if (ok) toast.success('PDF baixado.');
-    else toast.error('Não há linhas para exportar.');
-  };
-
-  const handleExportExcelInformativo = () => {
-    if (informativeRows.length === 0) {
-      toast.error('Gere o relatório informativo antes de exportar.');
-      return;
-    }
-    if (Number.isNaN(consumoMinimoNum)) {
-      toast.error('Consumo mínimo inválido.');
-      return;
-    }
-    if (exportRelatorioInformativoExcel(informativeRows, consumoMinimoNum, resumoInformativoExport))
-      toast.success('Planilha baixada.');
     else toast.error('Não há linhas para exportar.');
   };
 
@@ -900,14 +886,9 @@ export default function Relatorios() {
                 </>
               )}
               {type === 'informativo' && informativeRows.length > 0 && (
-                <>
-                  <button type="button" onClick={handleExportPdfInformativo} className="btn-secondary px-3 whitespace-nowrap">
-                    PDF
-                  </button>
-                  <button type="button" onClick={handleExportExcelInformativo} className="btn-secondary px-3 whitespace-nowrap">
-                    Excel
-                  </button>
-                </>
+                <button type="button" onClick={handleExportPdfInformativo} className="btn-secondary px-3 whitespace-nowrap">
+                  PDF
+                </button>
               )}
               {type === 'demonstrativo' && demoBills.length > 0 && (
                 <button
@@ -1371,7 +1352,7 @@ export default function Relatorios() {
               </tbody>
               <tfoot className="bg-slate-100 font-medium text-slate-900">
                 <tr>
-                  <td className="px-3 py-2" colSpan={4}>
+                  <td className="px-3 py-2 text-right" colSpan={4}>
                     Totais
                   </td>
                   <td className="px-3 py-2 text-center tabular-nums">

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   Building2,
@@ -153,29 +153,20 @@ export default function Dashboard() {
     [condominiosRaw]
   );
 
-  const leiturasMesQueries = useQueries({
-    queries: activeCondoIds.map((id) => ({
-      queryKey: ['dashboard-leituras-mes', id, anoAtual, mesAtual] as const,
-      queryFn: async () => {
-        const r = await api.get(`/mensuration/condominio/${id}/ano/${anoAtual}/mes/${mesAtual}`);
-        return normalizeApiList(r.data).length;
-      },
-      enabled: isAdmin && activeCondoIds.length > 0,
-      staleTime: 2 * 60_000,
-    })),
+  const { data: leiturasMesAgg, isLoading: loadingLeiturasMes } = useQuery({
+    queryKey: ['dashboard-leituras-mes', anoAtual, mesAtual] as const,
+    queryFn: () =>
+      api
+        .get<{ totalLeituras: number; condominiosComLeitura: number }>('/mensuration/dashboard-mes', {
+          params: { ano: anoAtual, mes: mesAtual },
+        })
+        .then((r) => r.data),
+    enabled: isAdmin,
+    staleTime: 2 * 60_000,
   });
 
-  const leiturasNoMes = useMemo(
-    () => leiturasMesQueries.reduce((s, q) => s + (q.data ?? 0), 0),
-    [leiturasMesQueries]
-  );
-
-  const condominiosComLeituraNoMes = useMemo(
-    () => leiturasMesQueries.filter((q) => (q.data ?? 0) > 0).length,
-    [leiturasMesQueries]
-  );
-
-  const loadingLeiturasMes = leiturasMesQueries.some((q) => q.isLoading);
+  const leiturasNoMes = leiturasMesAgg?.totalLeituras ?? 0;
+  const condominiosComLeituraNoMes = leiturasMesAgg?.condominiosComLeitura ?? 0;
 
   const condosAtivos = condominiosRaw.filter((c) => c.ativo).length;
   const condosInativos = condominiosRaw.length - condosAtivos;

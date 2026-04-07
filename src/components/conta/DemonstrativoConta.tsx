@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { logoHydrusHorizontalAbsoluteUrl } from '../../lib/branding';
 
 /** Resposta de GET /reports/bill/unidade/{id}. */
 export interface UnitBill {
@@ -172,9 +173,9 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
         <div className="flex flex-wrap items-center justify-between gap-4 mb-5 print-a4-tight print:mb-2">
           <div className="flex items-center min-h-[3.5rem]">
             <img
-              src="/images/logo-hydrus-horizontal.png"
+              src={logoHydrusHorizontalAbsoluteUrl()}
               alt="HIDRUS"
-              className="h-12 sm:h-14 w-auto max-w-[min(100%,280px)] object-contain object-left print:h-11"
+              className="hydrus-print-logo h-12 sm:h-14 w-auto max-w-[min(100%,280px)] object-contain object-left print:h-11"
             />
           </div>
           <div className="text-right">

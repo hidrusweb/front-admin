@@ -1,16 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { hasRole } from '../../lib/auth';
 import {
   exportRelatorioGeralExcel,
   exportRelatorioGeralPdf,
   exportRelatorioInformativoExcel,
   exportRelatorioInformativoPdf,
+  formatConsumoRelatorioGeralM3,
   parseGeneralReportApi,
   type GeneralReportRow,
+  type RelatorioGeralResumoExport,
+  type RelatorioInformativoResumoExport,
 } from '../../lib/exportRelatorioGeral';
 import DemonstrativoConta, { type UnitBill } from '../../components/conta/DemonstrativoConta';
+import { logoHydrusHorizontalAbsoluteUrl } from '../../lib/branding';
 import { mapCondominio, mapTabelaImposto, mapUnidade, normalizeApiList } from '../../lib/hidrusApi';
 
 type ReportType = 'geral' | 'informativo' | 'demonstrativo';
@@ -33,6 +39,162 @@ function isoDateOnly(v: unknown): string {
 }
 
 /** Ex.: De 03/04/2026 até 03/05/2026 */
+type LixeiraFormRow = {
+  id: string;
+  agrupamento: string;
+  leituraAnterior: number;
+  leituraAtual: number;
+};
+
+type ResumoGeralFormState = {
+  dataCaesb: string;
+  totalConsumoStr: string;
+  totalCaesbStr: string;
+  leituraAntCondStr: string;
+  leituraAtualCondStr: string;
+  lixeiras: LixeiraFormRow[];
+};
+
+function emptyResumoGeralForm(): ResumoGeralFormState {
+  return {
+    dataCaesb: '',
+    totalConsumoStr: '',
+    totalCaesbStr: '',
+    leituraAntCondStr: '',
+    leituraAtualCondStr: '',
+    lixeiras: [],
+  };
+}
+
+/** GET /reports/brief pode retornar objeto plano (Laravel) ou { resumo } (formato API .NET). */
+function unwrapBriefPayload(data: unknown): Record<string, unknown> | null {
+  if (data == null || typeof data !== 'object') return null;
+  const o = data as Record<string, unknown>;
+  const inner = o.resumo ?? o.Resumo;
+  if (inner != null && typeof inner === 'object') {
+    return inner as Record<string, unknown>;
+  }
+  return o;
+}
+
+type ResumoInformativoFormState = {
+  unidadesVoltando: string[];
+  unidadesAguaNoRelogio: string[];
+  unidadesVazamento: string[];
+};
+
+function emptyResumoInformativo(): ResumoInformativoFormState {
+  return {
+    unidadesVoltando: [],
+    unidadesAguaNoRelogio: [],
+    unidadesVazamento: [],
+  };
+}
+
+function parseStringListBriefField(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => String(x).trim()).filter((s) => s.length > 0);
+}
+
+function informativeBriefPayloadToState(data: unknown): ResumoInformativoFormState {
+  const src = unwrapBriefPayload(data);
+  if (!src) return emptyResumoInformativo();
+  return {
+    unidadesAguaNoRelogio: parseStringListBriefField(
+      src.UnidadesAguaNoRelogio ?? src.unidadesAguaNoRelogio
+    ),
+    unidadesVoltando: parseStringListBriefField(src.UnidadesVoltando ?? src.unidadesVoltando),
+    unidadesVazamento: parseStringListBriefField(src.UnidadesVazamento ?? src.unidadesVazamento),
+  };
+}
+
+/** Mês/ano: apenas dígitos, até 6 — exibe mm/aaaa (alinhado ao inputmask 99/9999 do legado). */
+function maskMesAnoMmAaaa(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 6);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
+/** Valor em centavos a partir da digitação → exibição 1.234,56 */
+function maskBrlMoneyInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  const centavosTotal = Number.parseInt(digits, 10);
+  if (!Number.isFinite(centavosTotal)) return '';
+  const reais = Math.floor(centavosTotal / 100);
+  const cents = centavosTotal % 100;
+  const wholeStr = String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${wholeStr},${String(cents).padStart(2, '0')}`;
+}
+
+/** Interpreta string do campo monetário pt-BR (com ou sem milhares) como número. */
+function parseBrlMonetaryForm(s: string): number {
+  const t = String(s).trim();
+  if (!t) return 0;
+  const noThousands = t.replace(/\./g, '');
+  const normalized = noThousands.replace(',', '.');
+  const n = Number.parseFloat(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function brlMoneyStrFromNumber(n: number): string {
+  if (!Number.isFinite(n) || n === 0) return '';
+  const centavosTotal = Math.round((n + Number.EPSILON) * 100);
+  return maskBrlMoneyInput(String(centavosTotal));
+}
+
+function totalCaesbStrFromApi(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'number' && Number.isFinite(v)) return brlMoneyStrFromNumber(v);
+  const s = String(v).trim();
+  if (!s) return '';
+  if (/^\d{1,3}(\.\d{3})*,\d{2}$/.test(s)) return s;
+  if (/^\d+\.\d+$/.test(s)) {
+    const n = Number.parseFloat(s);
+    return Number.isFinite(n) ? brlMoneyStrFromNumber(n) : '';
+  }
+  const n = Number.parseFloat(s.replace(/\./g, '').replace(',', '.'));
+  if (!Number.isFinite(n)) return '';
+  return brlMoneyStrFromNumber(n);
+}
+
+function briefPayloadToForm(data: unknown): ResumoGeralFormState {
+  const src = unwrapBriefPayload(data);
+  if (!src) return emptyResumoGeralForm();
+
+  const rawLix = src.lixeiras ?? src.Lixeiras;
+  const list = Array.isArray(rawLix) ? rawLix : [];
+  const lixeiras: LixeiraFormRow[] = list.map((item: unknown, i: number) => {
+    const r = item as Record<string, unknown>;
+    const agr = String(r.agrupamento ?? r.Agrupamento ?? '');
+    const ant = Number(r.leituraAnterior ?? r.LeituraAnterior ?? 0);
+    const atu = Number(r.leituraAtual ?? r.LeituraAtual ?? 0);
+    const id = r.id != null ? String(r.id) : `lix-${i}-${agr}`;
+    return { id, agrupamento: agr, leituraAnterior: ant, leituraAtual: atu };
+  });
+
+  return {
+    dataCaesb: maskMesAnoMmAaaa(String(src.dataCaesb ?? src.DataCaesb ?? '')),
+    totalConsumoStr:
+      src.totalConsumo != null || src.TotalConsumo != null
+        ? String(src.totalConsumo ?? src.TotalConsumo ?? '')
+        : '',
+    totalCaesbStr:
+      src.totalCaesb != null || src.TotalCaesb != null
+        ? totalCaesbStrFromApi(src.totalCaesb ?? src.TotalCaesb)
+        : '',
+    leituraAntCondStr:
+      src.leituraAnteriorCondominio != null || src.LeituraAnteriorCondominio != null
+        ? String(src.leituraAnteriorCondominio ?? src.LeituraAnteriorCondominio ?? '')
+        : '',
+    leituraAtualCondStr:
+      src.leituraAtualCondominio != null || src.LeituraAtualCondominio != null
+        ? String(src.leituraAtualCondominio ?? src.LeituraAtualCondominio ?? '')
+        : '',
+    lixeiras,
+  };
+}
+
 function formatCicloConsumoLabel(inicio: unknown, fim: unknown): string {
   const toBr = (v: unknown): string | null => {
     if (v == null) return null;
@@ -61,9 +223,25 @@ export default function Relatorios() {
   const [consumoMinimo, setConsumoMinimo] = useState('10');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<unknown>(null);
+  /** Evita reutilizar o JSON do relatório geral na aba informativo (e vice-versa). */
+  const [generatedReportKind, setGeneratedReportKind] = useState<'geral' | 'informativo' | null>(null);
   const [demoBills, setDemoBills] = useState<UnitBill[]>([]);
   /** Unidades marcadas no demonstrativo (id → incluir). */
   const [selectedDemoUnits, setSelectedDemoUnits] = useState<Record<number, boolean>>({});
+
+  const [resumoGeral, setResumoGeral] = useState<ResumoGeralFormState>(() => emptyResumoGeralForm());
+  const [draftLixeira, setDraftLixeira] = useState({ agrupamento: '', leituraAnterior: '', leituraAtual: '' });
+  const [savingResumo, setSavingResumo] = useState(false);
+
+  const [resumoInformativo, setResumoInformativo] = useState<ResumoInformativoFormState>(() =>
+    emptyResumoInformativo()
+  );
+  const [pickInformativoVoltando, setPickInformativoVoltando] = useState('');
+  const [pickInformativoAgua, setPickInformativoAgua] = useState('');
+  const [pickInformativoVazamento, setPickInformativoVazamento] = useState('');
+  const [savingResumoInformativo, setSavingResumoInformativo] = useState(false);
+
+  const isAdministrador = hasRole('ADMINISTRADOR');
 
   const { data: condominios = [] } = useQuery({
     queryKey: ['condominios'],
@@ -126,6 +304,46 @@ export default function Relatorios() {
   }, [type]);
 
   useEffect(() => {
+    setResumoGeral(emptyResumoGeralForm());
+    setDraftLixeira({ agrupamento: '', leituraAnterior: '', leituraAtual: '' });
+    setResumoInformativo(emptyResumoInformativo());
+    setPickInformativoVoltando('');
+    setPickInformativoAgua('');
+    setPickInformativoVazamento('');
+    setGeneratedReportKind(null);
+  }, [condominioId, consumoId]);
+
+  useEffect(() => {
+    if (type === 'informativo' && generatedReportKind !== 'informativo') {
+      setResult(null);
+      if (generatedReportKind != null) setGeneratedReportKind(null);
+      return;
+    }
+    if (type === 'geral' && generatedReportKind !== 'geral') {
+      setResult(null);
+      if (generatedReportKind != null) setGeneratedReportKind(null);
+    }
+  }, [type, generatedReportKind]);
+
+  useEffect(() => {
+    if (type !== 'informativo' || !consumoId || !condominioId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const br = await api.get(`/reports/brief/informative/${consumoId}/${condominioId}`);
+        if (!cancelled) setResumoInformativo(informativeBriefPayloadToState(br.data));
+      } catch (e) {
+        if (axios.isAxiosError(e) && e.response?.status === 404) {
+          if (!cancelled) setResumoInformativo(emptyResumoInformativo());
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [type, consumoId, condominioId]);
+
+  useEffect(() => {
     if (type !== 'geral' && type !== 'demonstrativo') return;
     if (!consumoId) {
       setTabelaId('');
@@ -185,6 +403,26 @@ export default function Relatorios() {
     return parseGeneralReportApi(result);
   }, [type, result]);
 
+  const resumoGeralExport = useMemo((): RelatorioGeralResumoExport | undefined => {
+    if (!isAdministrador) return undefined;
+    const lixeiras = [...resumoGeral.lixeiras]
+      .sort((a, b) => a.agrupamento.localeCompare(b.agrupamento, 'pt-BR', { sensitivity: 'base' }))
+      .map(({ agrupamento, leituraAnterior, leituraAtual }) => ({
+        agrupamento,
+        leituraAnterior,
+        leituraAtual,
+        consumo: leituraAtual - leituraAnterior,
+      }));
+    return {
+      dataCaesb: resumoGeral.dataCaesb.trim() || undefined,
+      totalConsumo: Number.parseInt(resumoGeral.totalConsumoStr, 10) || 0,
+      totalCaesb: parseBrlMonetaryForm(resumoGeral.totalCaesbStr),
+      leituraAnteriorCondominio: Number.parseInt(resumoGeral.leituraAntCondStr, 10) || 0,
+      leituraAtualCondominio: Number.parseInt(resumoGeral.leituraAtualCondStr, 10) || 0,
+      lixeiras,
+    };
+  }, [isAdministrador, resumoGeral]);
+
   const informativeRows = useMemo(() => {
     if (type !== 'informativo' || result == null) return [];
     return parseGeneralReportApi(result);
@@ -203,6 +441,25 @@ export default function Relatorios() {
       .filter((r) => r.consumo <= 0)
       .sort((a, b) => (a.unidade || '').localeCompare(b.unidade || '', 'pt-BR', { numeric: true }));
   }, [type, informativeRows]);
+
+  const unidadesInformativoOpcoes = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of informativeRows) {
+      const u = (r.unidade || '').trim();
+      if (u) set.add(u);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+  }, [informativeRows]);
+
+  const resumoInformativoExport = useMemo((): RelatorioInformativoResumoExport | undefined => {
+    if (type !== 'informativo' || informativeRows.length === 0) return undefined;
+    const sortU = (xs: string[]) => [...xs].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+    return {
+      unidadesVoltando: sortU(resumoInformativo.unidadesVoltando),
+      unidadesAguaNoRelogio: sortU(resumoInformativo.unidadesAguaNoRelogio),
+      unidadesVazamento: sortU(resumoInformativo.unidadesVazamento),
+    };
+  }, [type, informativeRows.length, resumoInformativo]);
 
   const tabelaPreviewRows: GeneralReportRow[] = type === 'geral' ? generalRows : [];
 
@@ -254,12 +511,34 @@ export default function Relatorios() {
         const tid = c?.idTabelaImposto ?? Number(tabelaId);
         const res = await api.get(`/reports/general/consumo/${consumoId}/tabela/${tid}`);
         setResult(res.data);
+        setGeneratedReportKind('geral');
+        if (isAdministrador && condominioId) {
+          try {
+            const br = await api.get(`/reports/brief/${consumoId}/${condominioId}`);
+            setResumoGeral(briefPayloadToForm(br.data));
+          } catch (e) {
+            if (axios.isAxiosError(e) && e.response?.status === 404) {
+              setResumoGeral(emptyResumoGeralForm());
+            }
+          }
+        }
         toast.success('Relatório gerado. Exporte em PDF ou Excel.');
       } else if (type === 'informativo') {
         const res = await api.get(`/reports/informative/${consumoMinimo}`, {
           params: { idConsumption: consumoId },
         });
         setResult(res.data);
+        setGeneratedReportKind('informativo');
+        if (condominioId) {
+          try {
+            const br = await api.get(`/reports/brief/informative/${consumoId}/${condominioId}`);
+            setResumoInformativo(informativeBriefPayloadToState(br.data));
+          } catch (e) {
+            if (axios.isAxiosError(e) && e.response?.status === 404) {
+              setResumoInformativo(emptyResumoInformativo());
+            }
+          }
+        }
         toast.success('Relatório gerado. Exporte em PDF ou Excel.');
       } else if (type === 'demonstrativo') {
         const c = consumoSelecionado!;
@@ -283,6 +562,7 @@ export default function Relatorios() {
           (a.Unidade || '').localeCompare(b.Unidade || '', 'pt-BR', { numeric: true })
         );
         setDemoBills(bills);
+        setGeneratedReportKind(null);
         if (falhas > 0) {
           toast.error(`${falhas} unidade(s) não puderam ser geradas (sem leitura no período ou erro).`);
         }
@@ -299,34 +579,13 @@ export default function Relatorios() {
     }
   };
 
-  const downloadJson = () => {
-    if (type === 'demonstrativo') {
-      if (demoBills.length === 0) return;
-      const blob = new Blob([JSON.stringify(demoBills, null, 2)], { type: 'application/json' });
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = href;
-      a.download = `relatorio-demonstrativo.json`;
-      a.click();
-      URL.revokeObjectURL(href);
-      return;
-    }
-    if (!result) return;
-    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
-    const href = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = href;
-    a.download = `relatorio-${type}.json`;
-    a.click();
-    URL.revokeObjectURL(href);
-  };
-
-  const handleExportPdfGeral = () => {
+  const handleExportPdfGeral = async () => {
     if (generalRows.length === 0) {
       toast.error('Gere o relatório geral antes de exportar.');
       return;
     }
-    if (exportRelatorioGeralPdf(generalRows)) toast.success('PDF baixado.');
+    const ok = await exportRelatorioGeralPdf(generalRows, resumoGeralExport);
+    if (ok) toast.success('PDF baixado.');
     else toast.error('Não há linhas para exportar.');
   };
 
@@ -335,13 +594,128 @@ export default function Relatorios() {
       toast.error('Gere o relatório geral antes de exportar.');
       return;
     }
-    if (exportRelatorioGeralExcel(generalRows)) toast.success('Planilha baixada.');
+    if (exportRelatorioGeralExcel(generalRows, resumoGeralExport)) toast.success('Planilha baixada.');
     else toast.error('Não há linhas para exportar.');
+  };
+
+  const addLixeiraRow = () => {
+    const agrupamento = draftLixeira.agrupamento.trim();
+    const leituraAnterior = Number.parseInt(draftLixeira.leituraAnterior, 10);
+    const leituraAtual = Number.parseInt(draftLixeira.leituraAtual, 10);
+    if (!agrupamento) {
+      toast.error('Digite um bloco (agrupamento).');
+      return;
+    }
+    if (
+      resumoGeral.lixeiras.some(
+        (x) => x.agrupamento.trim().toUpperCase() === agrupamento.toUpperCase()
+      )
+    ) {
+      toast.error('Já existe uma lixeira para esse bloco.');
+      return;
+    }
+    if (Number.isNaN(leituraAnterior)) {
+      toast.error('Digite um valor para a leitura anterior.');
+      return;
+    }
+    if (Number.isNaN(leituraAtual)) {
+      toast.error('Digite um valor para a leitura atual.');
+      return;
+    }
+    if (leituraAnterior > leituraAtual) {
+      toast.error('Leitura anterior maior que a atual. Confira a leitura dessa lixeira.');
+      return;
+    }
+    const id =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `lix-${Date.now()}`;
+    setResumoGeral((prev) => ({
+      ...prev,
+      lixeiras: [...prev.lixeiras, { id, agrupamento, leituraAnterior, leituraAtual }],
+    }));
+    setDraftLixeira({ agrupamento: '', leituraAnterior: '', leituraAtual: '' });
+  };
+
+  const removeLixeiraRow = (id: string) => {
+    setResumoGeral((prev) => ({ ...prev, lixeiras: prev.lixeiras.filter((l) => l.id !== id) }));
+  };
+
+  const salvarResumoGeral = async () => {
+    if (!consumoId || !condominioId) {
+      toast.error('Selecione condomínio e ciclo.');
+      return;
+    }
+    const lixeirasPayload = [...resumoGeral.lixeiras]
+      .sort((a, b) => a.agrupamento.localeCompare(b.agrupamento, 'pt-BR', { sensitivity: 'base' }))
+      .map(({ agrupamento, leituraAnterior, leituraAtual }) => ({
+        agrupamento,
+        leituraAnterior,
+        leituraAtual,
+        consumo: leituraAtual - leituraAnterior,
+      }));
+    const body = {
+      dataCaesb: resumoGeral.dataCaesb.trim(),
+      totalConsumo: Number.parseInt(resumoGeral.totalConsumoStr, 10) || 0,
+      totalCaesb: parseBrlMonetaryForm(resumoGeral.totalCaesbStr),
+      leituraAnteriorCondominio: Number.parseInt(resumoGeral.leituraAntCondStr, 10) || 0,
+      leituraAtualCondominio: Number.parseInt(resumoGeral.leituraAtualCondStr, 10) || 0,
+      lixeiras: lixeirasPayload,
+    };
+    setSavingResumo(true);
+    try {
+      await api.post(`/reports/brief/${consumoId}/${condominioId}`, body);
+      toast.success('Resumo salvo no banco (mesmo ciclo e condomínio).');
+    } catch {
+      toast.error('Não foi possível salvar o resumo.');
+    } finally {
+      setSavingResumo(false);
+    }
+  };
+
+  type InformativoListKey = keyof ResumoInformativoFormState;
+
+  const addUnidadeInformativo = (key: InformativoListKey, unit: string, clearPick: () => void) => {
+    const u = unit.trim();
+    if (!u) {
+      toast.error('Informe o nome da unidade.');
+      return;
+    }
+    if (resumoInformativo[key].some((x) => x.toUpperCase() === u.toUpperCase())) {
+      toast.error('Esta unidade já está na lista.');
+      return;
+    }
+    setResumoInformativo((prev) => ({ ...prev, [key]: [...prev[key], u] }));
+    clearPick();
+  };
+
+  const removeUnidadeInformativo = (key: InformativoListKey, unit: string) => {
+    setResumoInformativo((prev) => ({ ...prev, [key]: prev[key].filter((x) => x !== unit) }));
+  };
+
+  const salvarResumoInformativo = async () => {
+    if (!consumoId || !condominioId) {
+      toast.error('Selecione condomínio e ciclo.');
+      return;
+    }
+    setSavingResumoInformativo(true);
+    try {
+      await api.post(`/reports/brief/informative/${consumoId}/${condominioId}`, {
+        UnidadesAguaNoRelogio: resumoInformativo.unidadesAguaNoRelogio,
+        UnidadesVoltando: resumoInformativo.unidadesVoltando,
+        UnidadesVazamento: resumoInformativo.unidadesVazamento,
+      });
+      toast.success('Resumo informativo salvo.');
+    } catch {
+      toast.error('Não foi possível salvar o resumo informativo.');
+    } finally {
+      setSavingResumoInformativo(false);
+    }
   };
 
   const consumoMinimoNum = Number(consumoMinimo);
 
-  const handleExportPdfInformativo = () => {
+  const handleExportPdfInformativo = async () => {
     if (informativeRows.length === 0) {
       toast.error('Gere o relatório informativo antes de exportar.');
       return;
@@ -350,7 +724,12 @@ export default function Relatorios() {
       toast.error('Consumo mínimo inválido.');
       return;
     }
-    if (exportRelatorioInformativoPdf(informativeRows, consumoMinimoNum)) toast.success('PDF baixado.');
+    const ok = await exportRelatorioInformativoPdf(
+      informativeRows,
+      consumoMinimoNum,
+      resumoInformativoExport
+    );
+    if (ok) toast.success('PDF baixado.');
     else toast.error('Não há linhas para exportar.');
   };
 
@@ -363,13 +742,13 @@ export default function Relatorios() {
       toast.error('Consumo mínimo inválido.');
       return;
     }
-    if (exportRelatorioInformativoExcel(informativeRows, consumoMinimoNum)) toast.success('Planilha baixada.');
+    if (exportRelatorioInformativoExcel(informativeRows, consumoMinimoNum, resumoInformativoExport))
+      toast.success('Planilha baixada.');
     else toast.error('Não há linhas para exportar.');
   };
 
   const fmtBrl = (n: number) =>
     n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const fmtM3 = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   /** Exibição tipo legado: inteiros sem decimais. */
   const fmtConsumoInformativo = (consumo: number) => {
@@ -527,16 +906,6 @@ export default function Relatorios() {
                   Imprimir
                 </button>
               )}
-              {type === 'demonstrativo' && demoBills.length > 0 && (
-                <button type="button" onClick={downloadJson} className="btn-secondary px-3 whitespace-nowrap">
-                  JSON
-                </button>
-              )}
-              {result != null && (type === 'geral' || type === 'informativo') && (
-                <button type="button" onClick={downloadJson} className="btn-secondary px-3 text-gray-600 whitespace-nowrap">
-                  JSON
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -636,16 +1005,18 @@ export default function Relatorios() {
       {type === 'informativo' && informativeRows.length > 0 && (
         <div className="w-full min-w-0 space-y-4">
           <div className="rounded-lg border border-gray-200 bg-[#d2d2d2] px-4 py-4 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex flex-row items-center justify-between gap-3 min-w-0">
               <img
-                src="/images/logo-hydrus-horizontal.png"
+                src={logoHydrusHorizontalAbsoluteUrl()}
                 alt="HIDRUS"
-                className="h-11 sm:h-12 w-auto max-w-[min(100%,260px)] object-contain object-left shrink-0 mx-auto sm:mx-0"
+                className="hydrus-print-logo h-10 sm:h-11 w-auto max-w-[min(46%,200px)] sm:max-w-[220px] object-contain object-left shrink-0"
               />
-              <div className="flex-1 text-center sm:text-left min-w-0">
-                <p className="text-base font-semibold text-gray-900">{informativeRows[0]?.nomeCondominio}</p>
-                <p className="text-base font-semibold text-gray-900">Relatório informativo</p>
-                <p className="text-sm font-medium text-gray-800">
+              <div className="flex-1 min-w-0 text-right">
+                <p className="text-base font-semibold text-gray-900 leading-snug">
+                  {informativeRows[0]?.nomeCondominio}
+                </p>
+                <p className="text-base font-semibold text-gray-900 leading-snug">Relatório informativo</p>
+                <p className="text-sm font-medium text-gray-800 leading-snug">
                   Leitura de {informativeRows[0]?.dataInicial} a {informativeRows[0]?.dataFinal}
                 </p>
               </div>
@@ -691,25 +1062,244 @@ export default function Relatorios() {
                 <p className="text-sm text-gray-500 m-0">Nenhuma unidade sem consumo na seleção.</p>
               )}
             </section>
+
+            <datalist id="informativo-unidades-sugestoes">
+              {unidadesInformativoOpcoes.map((u) => (
+                <option key={u} value={u} />
+              ))}
+            </datalist>
+
+            <section className="space-y-3 border-t border-gray-200 pt-6">
+              <h2 className="text-base font-semibold text-gray-900 m-0 leading-snug">
+                Unidades com hidrômetro voltando{' '}
+                <span className="text-sm font-normal text-gray-600">
+                  (Total de <strong className="text-gray-900">{resumoInformativo.unidadesVoltando.length}</strong>{' '}
+                  unidades)
+                </span>
+              </h2>
+              {isAdministrador && (
+                <div className="flex flex-wrap items-end gap-2 print:hidden">
+                  <div className="flex flex-col gap-1 min-w-[12rem] flex-1 basis-[14rem]">
+                    <label className="text-xs font-medium text-gray-600">Unidade (lista ou digite)</label>
+                    <input
+                      type="text"
+                      className={inputBarClass}
+                      list="informativo-unidades-sugestoes"
+                      value={pickInformativoVoltando}
+                      onChange={(e) => setPickInformativoVoltando(e.target.value)}
+                      placeholder="Ex.: F-401"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary px-3 h-10 shrink-0"
+                    onClick={() =>
+                      addUnidadeInformativo('unidadesVoltando', pickInformativoVoltando, () =>
+                        setPickInformativoVoltando('')
+                      )
+                    }
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              )}
+              <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-2 text-sm text-gray-900 list-none p-0 m-0">
+                {[...resumoInformativo.unidadesVoltando]
+                  .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }))
+                  .map((u) => (
+                    <li
+                      key={`volt-${u}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-200/90 text-slate-900 px-2.5 py-1"
+                    >
+                      <span className="truncate" title={u}>
+                        {u}
+                      </span>
+                      {isAdministrador && (
+                        <button
+                          type="button"
+                          className="text-slate-600 hover:text-red-700 shrink-0 print:hidden p-0.5"
+                          aria-label={`Remover ${u}`}
+                          onClick={() => removeUnidadeInformativo('unidadesVoltando', u)}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+              {resumoInformativo.unidadesVoltando.length === 0 && (
+                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta lista.</p>
+              )}
+            </section>
+
+            <section className="space-y-3 border-t border-gray-200 pt-6">
+              <h2 className="text-base font-semibold text-gray-900 m-0 leading-snug">
+                Unidades com água no relógio{' '}
+                <span className="text-sm font-normal text-gray-600">
+                  (Total de <strong className="text-gray-900">{resumoInformativo.unidadesAguaNoRelogio.length}</strong>{' '}
+                  unidades)
+                </span>
+              </h2>
+              {isAdministrador && (
+                <div className="flex flex-wrap items-end gap-2 print:hidden">
+                  <div className="flex flex-col gap-1 min-w-[12rem] flex-1 basis-[14rem]">
+                    <label className="text-xs font-medium text-gray-600">Unidade (lista ou digite)</label>
+                    <input
+                      type="text"
+                      className={inputBarClass}
+                      list="informativo-unidades-sugestoes"
+                      value={pickInformativoAgua}
+                      onChange={(e) => setPickInformativoAgua(e.target.value)}
+                      placeholder="Ex.: CASA-36"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary px-3 h-10 shrink-0"
+                    onClick={() =>
+                      addUnidadeInformativo('unidadesAguaNoRelogio', pickInformativoAgua, () =>
+                        setPickInformativoAgua('')
+                      )
+                    }
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              )}
+              <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-2 text-sm text-gray-900 list-none p-0 m-0">
+                {[...resumoInformativo.unidadesAguaNoRelogio]
+                  .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }))
+                  .map((u) => (
+                    <li
+                      key={`agua-${u}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-200/90 text-slate-900 px-2.5 py-1"
+                    >
+                      <span className="truncate" title={u}>
+                        {u}
+                      </span>
+                      {isAdministrador && (
+                        <button
+                          type="button"
+                          className="text-slate-600 hover:text-red-700 shrink-0 print:hidden p-0.5"
+                          aria-label={`Remover ${u}`}
+                          onClick={() => removeUnidadeInformativo('unidadesAguaNoRelogio', u)}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+              {resumoInformativo.unidadesAguaNoRelogio.length === 0 && (
+                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta lista.</p>
+              )}
+            </section>
+
+            <section className="space-y-3 border-t border-gray-200 pt-6">
+              <h2 className="text-base font-semibold text-gray-900 m-0 leading-snug">
+                Unidades com vazamento{' '}
+                <span className="text-sm font-normal text-gray-600">
+                  (Total de <strong className="text-gray-900">{resumoInformativo.unidadesVazamento.length}</strong>{' '}
+                  unidades)
+                </span>
+              </h2>
+              {isAdministrador && (
+                <div className="flex flex-wrap items-end gap-2 print:hidden">
+                  <div className="flex flex-col gap-1 min-w-[12rem] flex-1 basis-[14rem]">
+                    <label className="text-xs font-medium text-gray-600">Unidade (lista ou digite)</label>
+                    <input
+                      type="text"
+                      className={inputBarClass}
+                      list="informativo-unidades-sugestoes"
+                      value={pickInformativoVazamento}
+                      onChange={(e) => setPickInformativoVazamento(e.target.value)}
+                      placeholder="Ex.: CASA-55"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary px-3 h-10 shrink-0"
+                    onClick={() =>
+                      addUnidadeInformativo('unidadesVazamento', pickInformativoVazamento, () =>
+                        setPickInformativoVazamento('')
+                      )
+                    }
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              )}
+              <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-2 text-sm text-gray-900 list-none p-0 m-0">
+                {[...resumoInformativo.unidadesVazamento]
+                  .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }))
+                  .map((u) => (
+                    <li
+                      key={`vaz-${u}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-200/90 text-slate-900 px-2.5 py-1"
+                    >
+                      <span className="truncate" title={u}>
+                        {u}
+                      </span>
+                      {isAdministrador && (
+                        <button
+                          type="button"
+                          className="text-slate-600 hover:text-red-700 shrink-0 print:hidden p-0.5"
+                          aria-label={`Remover ${u}`}
+                          onClick={() => removeUnidadeInformativo('unidadesVazamento', u)}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+              {resumoInformativo.unidadesVazamento.length === 0 && (
+                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta lista.</p>
+              )}
+            </section>
+
+            {isAdministrador && (
+              <div className="rounded-lg border border-amber-200/80 bg-amber-50/40 px-4 py-4 space-y-2 border-t-0 print:hidden">
+                <p className="text-xs text-gray-600 m-0">
+                  Resumo informativo gravado em{' '}
+                  <code className="text-[11px] bg-white/80 px-1 rounded">
+                    TB_RELATORIO_INFORMATIVO_RESUMO
+                  </code>{' '}
+                  (ou arquivo legado até migrar). Endpoint:{' '}
+                  <code className="text-[11px] bg-white/80 px-1 rounded">
+                    /api/reports/brief/informative/&#123;consumo&#125;/&#123;condomínio&#125;
+                  </code>
+                  .
+                </p>
+                <button
+                  type="button"
+                  className="btn-primary px-4"
+                  disabled={savingResumoInformativo || !consumoId || !condominioId}
+                  onClick={() => void salvarResumoInformativo()}
+                >
+                  {savingResumoInformativo ? 'Salvando…' : 'Salvar resumo informativo'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {type === 'geral' && tabelaPreviewRows.length > 0 && (
-        <div className="w-full min-w-0 space-y-4">
+        <div className="w-full min-w-0 space-y-4 print:overflow-visible">
           <div className="rounded-lg border border-gray-200 bg-[#d2d2d2] px-4 py-4 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex flex-row items-center justify-between gap-3 min-w-0">
               <img
-                src="/images/logo-hydrus-horizontal.png"
+                src={logoHydrusHorizontalAbsoluteUrl()}
                 alt="HIDRUS"
-                className="h-11 sm:h-12 w-auto max-w-[min(100%,260px)] object-contain object-left shrink-0 mx-auto sm:mx-0"
+                className="hydrus-print-logo h-10 sm:h-11 w-auto max-w-[min(46%,200px)] sm:max-w-[220px] object-contain object-left shrink-0"
               />
-              <div className="flex-1 text-center sm:text-left min-w-0">
-                <p className="text-base font-semibold text-gray-900">
+              <div className="flex-1 min-w-0 text-right">
+                <p className="text-base font-semibold text-gray-900 leading-snug">
                   {tabelaPreviewRows[0]?.nomeCondominio || 'Condomínio'}
                 </p>
-                <p className="text-base font-semibold text-gray-900">Relatório geral</p>
-                <p className="text-sm font-medium text-gray-800">
+                <p className="text-base font-semibold text-gray-900 leading-snug">Relatório geral</p>
+                <p className="text-sm font-medium text-gray-800 leading-snug">
                   Leitura de {tabelaPreviewRows[0]?.dataInicial} a {tabelaPreviewRows[0]?.dataFinal}
                   {tabelaPreviewRows[0]?.dataProximaLeitura
                     ? ` · Próx. leitura ${tabelaPreviewRows[0].dataProximaLeitura}`
@@ -718,61 +1308,210 @@ export default function Relatorios() {
               </div>
             </div>
           </div>
-          <div className="card space-y-3 w-full min-w-0 overflow-hidden">
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <div className="card space-y-3 w-full min-w-0 overflow-hidden print:overflow-visible print:shadow-none">
+            <div className="max-h-[min(70vh,36rem)] overflow-auto rounded-lg border border-gray-200 print:max-h-none print:overflow-visible">
             <table className="min-w-full text-sm text-left">
               <thead className="bg-slate-800 text-white">
                 <tr>
+                  <th className="px-3 py-2 font-medium whitespace-nowrap text-center w-14">Ordem</th>
                   <th className="px-3 py-2 font-medium whitespace-nowrap">Unidade</th>
                   <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Leit. ant.</th>
                   <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Leit. atual</th>
                   <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Consumo (m³)</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Val. excedente</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Tar. conting.</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Área comum</th>
                   <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Valor a pagar</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap">Hidrômetro</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
                 {tabelaPreviewRows.map((r, i) => (
                   <tr key={`${r.unidade}-${i}`} className="hover:bg-slate-50">
+                    <td className="px-3 py-2 text-center tabular-nums text-gray-700">{i + 1}</td>
                     <td className="px-3 py-2 text-gray-900">{r.unidade}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.leituraAnterior}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.leituraAtual}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmtM3(r.consumo)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmtBrl(r.valorExcedente)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmtBrl(r.tarifaContingencia)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmtBrl(r.valorAreaComum)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {formatConsumoRelatorioGeralM3(r.consumo)}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-900">{fmtBrl(r.valorPagar)}</td>
-                    <td className="px-3 py-2 text-gray-600">{r.hidrometro || '—'}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot className="bg-slate-100 font-medium text-slate-900">
                 <tr>
-                  <td className="px-3 py-2">Totais</td>
-                  <td className="px-3 py-2 text-right" colSpan={2} />
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {fmtM3(tabelaPreviewRows.reduce((a, r) => a + r.consumo, 0))}
+                  <td className="px-3 py-2" colSpan={4}>
+                    Totais
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
-                    {fmtBrl(tabelaPreviewRows.reduce((a, r) => a + r.valorExcedente, 0))}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {fmtBrl(tabelaPreviewRows.reduce((a, r) => a + r.tarifaContingencia, 0))}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {fmtBrl(tabelaPreviewRows.reduce((a, r) => a + r.valorAreaComum, 0))}
+                    {formatConsumoRelatorioGeralM3(tabelaPreviewRows.reduce((a, r) => a + r.consumo, 0))}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     {fmtBrl(tabelaPreviewRows.reduce((a, r) => a + r.valorPagar, 0))}
                   </td>
-                  <td className="px-3 py-2" />
                 </tr>
               </tfoot>
             </table>
             </div>
+
+            {isAdministrador && (
+              <div className="rounded-lg border border-amber-200/80 bg-amber-50/40 px-4 py-4 space-y-4">
+                <h2 className="text-base font-semibold text-gray-900 m-0">Resumo</h2>
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-800 m-0">Conta CAESB</h3>
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
+                      <label className="text-xs font-medium text-gray-600">Mês/ano</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={7}
+                        className={inputBarClass}
+                        placeholder="mm/aaaa"
+                        value={resumoGeral.dataCaesb}
+                        onChange={(e) =>
+                          setResumoGeral((p) => ({ ...p, dataCaesb: maskMesAnoMmAaaa(e.target.value) }))
+                        }
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
+                      <label className="text-xs font-medium text-gray-600">Consumo total (m³)</label>
+                      <input
+                        type="number"
+                        className={inputBarClass}
+                        value={resumoGeral.totalConsumoStr}
+                        onChange={(e) => setResumoGeral((p) => ({ ...p, totalConsumoStr: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
+                      <label className="text-xs font-medium text-gray-600">Valor total (R$)</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        className={`${inputBarClass} tabular-nums`}
+                        placeholder="0,00"
+                        value={resumoGeral.totalCaesbStr}
+                        onChange={(e) =>
+                          setResumoGeral((p) => ({ ...p, totalCaesbStr: maskBrlMoneyInput(e.target.value) }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-800 m-0">Hidrômetro geral</h3>
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
+                      <label className="text-xs font-medium text-gray-600">Leitura anterior (m³)</label>
+                      <input
+                        type="number"
+                        className={inputBarClass}
+                        value={resumoGeral.leituraAntCondStr}
+                        onChange={(e) => setResumoGeral((p) => ({ ...p, leituraAntCondStr: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
+                      <label className="text-xs font-medium text-gray-600">Leitura atual (m³)</label>
+                      <input
+                        type="number"
+                        className={inputBarClass}
+                        value={resumoGeral.leituraAtualCondStr}
+                        onChange={(e) => setResumoGeral((p) => ({ ...p, leituraAtualCondStr: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-800 m-0">Lixeiras</h3>
+                  <div className="flex flex-wrap gap-3 items-end">
+                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
+                      <label className="text-xs font-medium text-gray-600">Bloco (agrupamento)</label>
+                      <input
+                        type="text"
+                        className={inputBarClass}
+                        placeholder="Bloco"
+                        value={draftLixeira.agrupamento}
+                        onChange={(e) => setDraftLixeira((d) => ({ ...d, agrupamento: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-[7rem] w-[7.5rem]">
+                      <label className="text-xs font-medium text-gray-600">Leit. ant.</label>
+                      <input
+                        type="number"
+                        className={inputBarClass}
+                        value={draftLixeira.leituraAnterior}
+                        onChange={(e) => setDraftLixeira((d) => ({ ...d, leituraAnterior: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-[7rem] w-[7.5rem]">
+                      <label className="text-xs font-medium text-gray-600">Leit. atual</label>
+                      <input
+                        type="number"
+                        className={inputBarClass}
+                        value={draftLixeira.leituraAtual}
+                        onChange={(e) => setDraftLixeira((d) => ({ ...d, leituraAtual: e.target.value }))}
+                      />
+                    </div>
+                    <button type="button" className="btn-secondary px-4 h-10 shrink-0" onClick={addLixeiraRow}>
+                      Adicionar lixeira
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                    {resumoGeral.lixeiras.length === 0 ? (
+                      <p className="text-xs text-gray-500 px-3 py-3 m-0">Nenhuma lixeira neste resumo.</p>
+                    ) : (
+                      <table className="min-w-full text-sm text-left">
+                        <thead className="bg-slate-800 text-white">
+                          <tr>
+                            <th className="px-3 py-2 font-medium">Bloco</th>
+                            <th className="px-3 py-2 font-medium text-right">Leitura anterior</th>
+                            <th className="px-3 py-2 font-medium text-right">Leitura atual</th>
+                            <th className="px-3 py-2 font-medium text-right">Consumo</th>
+                            <th className="px-3 py-2 font-medium text-center w-24">Remover?</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {[...resumoGeral.lixeiras]
+                            .sort((a, b) =>
+                              a.agrupamento.localeCompare(b.agrupamento, 'pt-BR', { sensitivity: 'base' })
+                            )
+                            .map((lix) => (
+                              <tr key={lix.id} className="hover:bg-slate-50">
+                                <td className="px-3 py-2 text-gray-900">{lix.agrupamento}</td>
+                                <td className="px-3 py-2 text-right tabular-nums">{lix.leituraAnterior}</td>
+                                <td className="px-3 py-2 text-right tabular-nums">{lix.leituraAtual}</td>
+                                <td className="px-3 py-2 text-right tabular-nums">
+                                  {lix.leituraAtual - lix.leituraAnterior}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <button
+                                    type="button"
+                                    className="text-red-600 hover:text-red-800 text-xs font-medium"
+                                    onClick={() => removeLixeiraRow(lix.id)}
+                                  >
+                                    Remover
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-primary px-4"
+                  disabled={savingResumo || !consumoId || !condominioId}
+                  onClick={() => void salvarResumoGeral()}
+                >
+                  {savingResumo ? 'Salvando…' : 'Salvar resumo'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

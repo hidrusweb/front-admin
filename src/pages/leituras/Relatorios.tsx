@@ -19,6 +19,7 @@ import {
 import DemonstrativoConta, { type UnitBill } from '../../components/conta/DemonstrativoConta';
 import { logoHydrusHorizontalAbsoluteUrl } from '../../lib/branding';
 import { mapCondominio, mapTabelaImposto, mapUnidade, normalizeApiList } from '../../lib/hidrusApi';
+import { isoDateToDdMmYyyy } from '../../lib/formatDateBr';
 
 type ReportType = 'geral' | 'informativo' | 'demonstrativo';
 
@@ -197,22 +198,11 @@ function briefPayloadToForm(data: unknown): ResumoGeralFormState {
 }
 
 function formatCicloConsumoLabel(inicio: unknown, fim: unknown): string {
-  const toBr = (v: unknown): string | null => {
-    if (v == null) return null;
-    const s = String(v).trim();
-    const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-    if (iso) {
-      const [, y, m, d] = iso;
-      return `${d}/${m}/${y}`;
-    }
-    const t = Date.parse(s);
-    if (Number.isNaN(t)) return null;
-    return new Date(t).toLocaleDateString('pt-BR');
-  };
-  const a = toBr(inicio);
-  const b = toBr(fim);
-  if (a && b) return `De ${a} até ${b}`;
-  return `${String(inicio ?? '').slice(0, 10)} → ${String(fim ?? '').slice(0, 10)}`;
+  const a = isoDateToDdMmYyyy(String(inicio ?? ''));
+  const b = isoDateToDdMmYyyy(String(fim ?? ''));
+  if (a !== '—' && b !== '—') return `De ${a} até ${b}`;
+  if (a !== '—' || b !== '—') return `${a} → ${b}`;
+  return '—';
 }
 
 export default function Relatorios() {
@@ -360,6 +350,17 @@ export default function Relatorios() {
   }, [consumoId, consumos]);
 
   const dataRefDemonstrativo = consumoSelecionado?.dataFim ?? '';
+
+  const dataRefDemonstrativoBr = useMemo(() => {
+    const s = dataRefDemonstrativo.trim();
+    if (!s) return '';
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+    if (ymd) {
+      const [, y, mo, d] = ymd;
+      return `${d}/${mo}/${y}`;
+    }
+    return s;
+  }, [dataRefDemonstrativo]);
 
   const anoMesDemonstrativo = useMemo(() => {
     const s = dataRefDemonstrativo;
@@ -923,9 +924,9 @@ export default function Relatorios() {
                   ))}
                 </select>
               </div>
-              {consumoId && dataRefDemonstrativo && (
+              {consumoId && dataRefDemonstrativoBr && (
                 <p className="text-xs text-gray-500 pb-2">
-                  Referência da conta: <span className="font-medium text-gray-700">{dataRefDemonstrativo}</span> (fim do
+                  Referência da conta: <span className="font-medium text-gray-700">{dataRefDemonstrativoBr}</span> (fim do
                   ciclo)
                 </p>
               )}
@@ -1032,29 +1033,25 @@ export default function Relatorios() {
                   </li>
                 ))}
               </ul>
-              {informativeComConsumo.length === 0 && (
-                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta faixa.</p>
-              )}
             </section>
 
-            <section className="space-y-3 border-t border-gray-200 pt-6">
-              <h2 className="text-base font-semibold text-gray-900 m-0 leading-snug">
-                Unidades sem consumo{' '}
-                <span className="text-sm font-normal text-gray-600">
-                  (Total de <strong className="text-gray-900">{informativeSemConsumo.length}</strong> unidades)
-                </span>
-              </h2>
-              <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-2 text-sm text-gray-900 list-none p-0 m-0">
-                {informativeSemConsumo.map((r, i) => (
-                  <li key={`${r.unidade}-sem-${i}`} className="border-b border-gray-100 pb-1.5">
-                    {r.unidade}
-                  </li>
-                ))}
-              </ul>
-              {informativeSemConsumo.length === 0 && (
-                <p className="text-sm text-gray-500 m-0">Nenhuma unidade sem consumo na seleção.</p>
-              )}
-            </section>
+            {informativeSemConsumo.length > 0 && (
+              <section className="space-y-3 border-t border-gray-200 pt-6">
+                <h2 className="text-base font-semibold text-gray-900 m-0 leading-snug">
+                  Unidades sem consumo{' '}
+                  <span className="text-sm font-normal text-gray-600">
+                    (Total de <strong className="text-gray-900">{informativeSemConsumo.length}</strong> unidades)
+                  </span>
+                </h2>
+                <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-2 text-sm text-gray-900 list-none p-0 m-0">
+                  {informativeSemConsumo.map((r, i) => (
+                    <li key={`${r.unidade}-sem-${i}`} className="border-b border-gray-100 pb-1.5">
+                      {r.unidade}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <datalist id="informativo-unidades-sugestoes">
               {unidadesInformativoOpcoes.map((u) => (
@@ -1120,9 +1117,6 @@ export default function Relatorios() {
                     </li>
                   ))}
               </ul>
-              {resumoInformativo.unidadesVoltando.length === 0 && (
-                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta lista.</p>
-              )}
             </section>
 
             <section className="space-y-3 border-t border-gray-200 pt-6">
@@ -1183,9 +1177,6 @@ export default function Relatorios() {
                     </li>
                   ))}
               </ul>
-              {resumoInformativo.unidadesAguaNoRelogio.length === 0 && (
-                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta lista.</p>
-              )}
             </section>
 
             <section className="space-y-3 border-t border-gray-200 pt-6">
@@ -1246,9 +1237,6 @@ export default function Relatorios() {
                     </li>
                   ))}
               </ul>
-              {resumoInformativo.unidadesVazamento.length === 0 && (
-                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta lista.</p>
-              )}
             </section>
 
             {isAdministrador && (
@@ -1419,30 +1407,6 @@ export default function Relatorios() {
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-gray-800 m-0">Hidrômetro geral</h3>
-                  <div className="flex flex-wrap gap-3">
-                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
-                      <label className="text-xs font-medium text-gray-600">Leitura anterior (m³)</label>
-                      <input
-                        type="number"
-                        className={inputBarClass}
-                        value={resumoGeral.leituraAntCondStr}
-                        onChange={(e) => setResumoGeral((p) => ({ ...p, leituraAntCondStr: e.target.value }))}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
-                      <label className="text-xs font-medium text-gray-600">Leitura atual (m³)</label>
-                      <input
-                        type="number"
-                        className={inputBarClass}
-                        value={resumoGeral.leituraAtualCondStr}
-                        onChange={(e) => setResumoGeral((p) => ({ ...p, leituraAtualCondStr: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
                   <h3 className="text-sm font-semibold text-gray-800 m-0">Lixeiras</h3>
                   <div className="flex flex-wrap gap-3 items-end">
                     <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
@@ -1519,6 +1483,30 @@ export default function Relatorios() {
                         </tbody>
                       </table>
                     )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-800 m-0">Hidrômetro geral</h3>
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
+                      <label className="text-xs font-medium text-gray-600">Leitura anterior (m³)</label>
+                      <input
+                        type="number"
+                        className={inputBarClass}
+                        value={resumoGeral.leituraAntCondStr}
+                        onChange={(e) => setResumoGeral((p) => ({ ...p, leituraAntCondStr: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
+                      <label className="text-xs font-medium text-gray-600">Leitura atual (m³)</label>
+                      <input
+                        type="number"
+                        className={inputBarClass}
+                        value={resumoGeral.leituraAtualCondStr}
+                        onChange={(e) => setResumoGeral((p) => ({ ...p, leituraAtualCondStr: e.target.value }))}
+                      />
+                    </div>
                   </div>
                 </div>
 

@@ -38,7 +38,7 @@ export function formatUnidadeLegado(agrupamentoNome: string, numeroUnidade: stri
 }
 
 /**
- * PDF com os dados de condôminos (cadastro de unidades), respeitando o filtro atual da tela.
+ * PDF em A4 retrato: ordem, unidade, condômino, CPF, e-mail, telefone e hidrômetro (sem condomínio/endereço na tabela).
  * @returns true se gerou o arquivo
  */
 export function exportCondominosPdf(
@@ -47,7 +47,7 @@ export function exportCondominosPdf(
 ): boolean {
   if (rows.length === 0) return false;
 
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const filtro = options.tituloFiltro?.trim();
   const titulo = filtro ? `Condôminos — ${filtro}` : 'Condôminos — todos os agrupamentos';
 
@@ -58,16 +58,15 @@ export function exportCondominosPdf(
   doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20);
   doc.setTextColor(0, 0, 0);
 
-  const head = [['Condomínio', 'Unidade', 'Condômino', 'CPF', 'E-mail', 'Telefone', 'Endereço', 'Hidrômetro']];
+  const head = [['Ordem', 'Unidade', 'Condômino', 'CPF', 'E-mail', 'Telefone', 'Hidrômetro']];
 
-  const body = rows.map((r) => [
-    r.condominioNome || '—',
+  const body = rows.map((r, i) => [
+    String(i + 1),
     formatUnidadeLegado(r.agrupamentoNome, r.unidade),
     r.condomino || '—',
     r.cpf || '—',
     r.email || '—',
     r.telefone || '—',
-    r.endereco || '—',
     r.hidrometro || '—',
   ]);
 
@@ -78,6 +77,15 @@ export function exportCondominosPdf(
     styles: { fontSize: 7, cellPadding: 1.2, overflow: 'linebreak' },
     headStyles: { fillColor: [30, 64, 120] },
     margin: { left: 10, right: 10 },
+    columnStyles: {
+      0: { cellWidth: 14, halign: 'center' },
+      1: { cellWidth: 24 },
+      2: { cellWidth: 28 },
+      3: { cellWidth: 26 },
+      4: { cellWidth: 38 },
+      5: { cellWidth: 24 },
+      6: { cellWidth: 26 },
+    },
   });
 
   const prefix = filtro ? slugifyFilename(filtro) : 'todos';

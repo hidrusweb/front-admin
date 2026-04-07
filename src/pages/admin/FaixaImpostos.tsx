@@ -82,8 +82,8 @@ export default function FaixaImpostos() {
       ordem: f.ordem,
       min: f.min,
       max: f.max,
-      aliquotaAgua: f.aliquotaAgua,
-      aliquotaEsgoto: f.aliquotaEsgoto,
+      aliquotaAgua: Math.round(f.aliquotaAgua * 100) / 100,
+      aliquotaEsgoto: Math.round(f.aliquotaEsgoto * 100) / 100,
     });
     setModalOpen(true);
   };
@@ -97,8 +97,8 @@ export default function FaixaImpostos() {
           ordem: data.ordem,
           min: data.min,
           max: data.max,
-          aliquotaAgua: data.aliquotaAgua,
-          aliquotaEsgoto: data.aliquotaEsgoto,
+          aliquotaAgua: Math.round(data.aliquotaAgua * 100) / 100,
+          aliquotaEsgoto: Math.round(data.aliquotaEsgoto * 100) / 100,
         },
         editing?.id
       );
@@ -121,7 +121,8 @@ export default function FaixaImpostos() {
     onError: () => toast.error('Erro ao remover faixa'),
   });
 
-  const fmt = (v: number) => v?.toFixed(4);
+  const fmtAliquota = (v: number) =>
+    typeof v === 'number' && Number.isFinite(v) ? v.toFixed(2) : '—';
 
   const columns: ColumnDef<FaixaImposto>[] = [
     { accessorKey: 'nomeF', header: 'Nome' },
@@ -129,8 +130,16 @@ export default function FaixaImpostos() {
     { accessorKey: 'ordem', header: 'Ordem' },
     { accessorKey: 'min', header: 'Min (m³)' },
     { accessorKey: 'max', header: 'Max (m³)' },
-    { accessorKey: 'aliquotaAgua', header: 'Alíquota Água', cell: ({ getValue }) => fmt(getValue() as number) },
-    { accessorKey: 'aliquotaEsgoto', header: 'Alíquota Esgoto', cell: ({ getValue }) => fmt(getValue() as number) },
+    {
+      accessorKey: 'aliquotaAgua',
+      header: 'Alíquota Água',
+      cell: ({ getValue }) => fmtAliquota(getValue() as number),
+    },
+    {
+      accessorKey: 'aliquotaEsgoto',
+      header: 'Alíquota Esgoto',
+      cell: ({ getValue }) => fmtAliquota(getValue() as number),
+    },
     {
       id: 'actions',
       header: 'Ações',
@@ -210,11 +219,11 @@ export default function FaixaImpostos() {
             </div>
             <div>
               <label className="label">Alíquota Água</label>
-              <input type="number" step="0.0001" className="input" {...register('aliquotaAgua')} />
+              <input type="number" step="0.01" className="input" {...register('aliquotaAgua')} />
             </div>
             <div>
               <label className="label">Alíquota Esgoto</label>
-              <input type="number" step="0.0001" className="input" {...register('aliquotaEsgoto')} />
+              <input type="number" step="0.01" className="input" {...register('aliquotaEsgoto')} />
             </div>
           </div>
           <div className="flex gap-3 pt-2">

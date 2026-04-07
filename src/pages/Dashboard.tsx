@@ -225,6 +225,22 @@ export default function Dashboard() {
         </p>
       </div>
 
+      <section className="card">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Acesso rápido</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {visibleLinks.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-primary-300 hover:bg-primary-50/60 transition-colors text-sm font-medium text-gray-800 touch-manipulation min-h-[52px] group"
+            >
+              <span className="text-primary-600 shrink-0 group-hover:scale-105 transition-transform">{link.icon}</span>
+              <span className="truncate">{link.label}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       {!isAdmin && (
         <div className="card border-primary-100 bg-primary-50/40">
           <p className="text-sm text-gray-700">
@@ -392,22 +408,6 @@ export default function Dashboard() {
           </section>
         </>
       )}
-
-      <section className="card">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Acesso rápido</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {visibleLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-primary-300 hover:bg-primary-50/60 transition-colors text-sm font-medium text-gray-800 touch-manipulation min-h-[52px] group"
-            >
-              <span className="text-primary-600 shrink-0 group-hover:scale-105 transition-transform">{link.icon}</span>
-              <span className="truncate">{link.label}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

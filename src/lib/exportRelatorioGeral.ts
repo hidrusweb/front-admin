@@ -27,7 +27,7 @@ export type RelatorioGeralResumoExport = {
   dataCaesb?: string;
   totalConsumo?: number;
   totalCaesb?: number;
-  /** Quando true, inclui o quadro de conferência entre total das unidades e valor da conta CAESB (legado). */
+  /** Quando true, inclui o quadro «Resumo» (total das unidades × conta CAESB) no PDF (legado). */
   conferenciaCaesb?: boolean;
   leituraAnteriorCondominio?: number;
   leituraAtualCondominio?: number;
@@ -49,7 +49,11 @@ function resumoExportTemConteudo(r: RelatorioGeralResumoExport): boolean {
   return false;
 }
 
-function appendResumoPdf(doc: jsPDF, resumo: RelatorioGeralResumoExport): void {
+function appendResumoPdf(
+  doc: jsPDF,
+  rows: GeneralReportRow[],
+  resumo: RelatorioGeralResumoExport
+): void {
   if (!resumoExportTemConteudo(resumo)) return;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,12 +66,6 @@ function appendResumoPdf(doc: jsPDF, resumo: RelatorioGeralResumoExport): void {
       y = 14;
     }
   };
-
-  doc.setFontSize(11);
-  doc.setTextColor(0, 0, 0);
-  ensureSpace(8);
-  doc.text('Resumo', 14, y);
-  y += 6;
 
   doc.setFontSize(9);
   doc.setTextColor(60, 60, 60);
@@ -92,6 +90,55 @@ function appendResumoPdf(doc: jsPDF, resumo: RelatorioGeralResumoExport): void {
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   y = ((doc as any).lastAutoTable?.finalY as number) + 8;
+
+  if (rows[0]?.usaPadraoCaesb && resumo.conferenciaCaesb) {
+    const totalCaesb = resumo.totalCaesb ?? 0;
+    const totalAPagar = totals(rows).valorPagar;
+    const n = rows.length;
+    const fmt = (v: number) =>
+      v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    ensureSpace(36);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('Resumo', 14, y);
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+
+    const escuro: [number, number, number] = [45, 55, 72];
+    const claro: [number, number, number] = [226, 232, 240];
+
+    const body: string[][] =
+      totalAPagar >= totalCaesb
+        ? [
+            [`1. Total das ${n} unidades`, `==> ${fmt(totalAPagar)}`],
+            [`2. Conta CAESB`, `==> ${fmt(totalCaesb)}`],
+            [`3. Diferença`, `==> ${fmt(totalAPagar - totalCaesb)}`],
+          ]
+        : [
+            [`1. Conta CAESB`, `==> ${fmt(totalCaesb)}`],
+            [`2. Total das ${n} unidades`, `==> ${fmt(totalAPagar)}`],
+            [`3. Diferença`, `==> ${fmt(totalCaesb - totalAPagar)}`],
+          ];
+
+    autoTable(doc, {
+      startY: y,
+      body,
+      theme: 'plain',
+      styles: { fontSize: 9, cellPadding: 1.6 },
+      columnStyles: { 0: { cellWidth: 105 }, 1: { cellWidth: 72 } },
+      didParseCell: (data) => {
+        const i = data.row.index;
+        const fundo = i % 2 === 0 ? escuro : claro;
+        data.cell.styles.fillColor = fundo;
+        data.cell.styles.textColor = i % 2 === 0 ? [255, 255, 255] : [30, 30, 30];
+        if (i === 2) data.cell.styles.fontStyle = 'bold';
+      },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    y = ((doc as any).lastAutoTable?.finalY as number) + 8;
+  }
 
   if (resumo.lixeiras.length > 0) {
     ensureSpace(16);
@@ -140,66 +187,6 @@ function appendResumoPdf(doc: jsPDF, resumo: RelatorioGeralResumoExport): void {
     headStyles: { fillColor: [30, 64, 120] },
     margin: { left: 14, right: 14 },
     columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 2: { halign: 'center' } },
-  });
-}
-
-function appendConferenciaCaesbPdf(
-  doc: jsPDF,
-  rows: GeneralReportRow[],
-  resumo: RelatorioGeralResumoExport
-): void {
-  if (!rows[0]?.usaPadraoCaesb || !resumo.conferenciaCaesb) return;
-  const totalCaesb = resumo.totalCaesb ?? 0;
-  const totalAPagar = totals(rows).valorPagar;
-  const n = rows.length;
-  const fmt = (v: number) =>
-    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let y = ((doc as any).lastAutoTable?.finalY as number | undefined) ?? 40;
-  y += 10;
-  const pageH = doc.internal.pageSize.getHeight();
-  if (y > pageH - 42) {
-    doc.addPage();
-    y = 14;
-  }
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 0, 0);
-  doc.text('Conferência (padrão CAESB)', 14, y);
-  y += 6;
-  doc.setFont('helvetica', 'normal');
-
-  const escuro: [number, number, number] = [45, 55, 72];
-  const claro: [number, number, number] = [226, 232, 240];
-
-  const body: string[][] =
-    totalAPagar >= totalCaesb
-      ? [
-          [`1. Total das ${n} unidades`, `==> ${fmt(totalAPagar)}`],
-          [`2. Conta CAESB`, `==> ${fmt(totalCaesb)}`],
-          [`3. Diferença`, `==> ${fmt(totalAPagar - totalCaesb)}`],
-        ]
-      : [
-          [`1. Conta CAESB`, `==> ${fmt(totalCaesb)}`],
-          [`2. Total das ${n} unidades`, `==> ${fmt(totalAPagar)}`],
-          [`3. Diferença`, `==> ${fmt(totalCaesb - totalAPagar)}`],
-        ];
-
-  autoTable(doc, {
-    startY: y,
-    body,
-    theme: 'plain',
-    styles: { fontSize: 9, cellPadding: 1.6 },
-    columnStyles: { 0: { cellWidth: 105 }, 1: { cellWidth: 72 } },
-    didParseCell: (data) => {
-      const i = data.row.index;
-      const fundo = i % 2 === 0 ? escuro : claro;
-      data.cell.styles.fillColor = fundo;
-      data.cell.styles.textColor = i % 2 === 0 ? [255, 255, 255] : [30, 30, 30];
-      if (i === 2) data.cell.styles.fontStyle = 'bold';
-    },
   });
 }
 
@@ -516,10 +503,7 @@ async function exportRelatorioTabelaPdf(
   });
 
   if (opt.resumo) {
-    appendResumoPdf(doc, opt.resumo);
-  }
-  if (opt.resumo) {
-    appendConferenciaCaesbPdf(doc, rows, opt.resumo);
+    appendResumoPdf(doc, rows, opt.resumo);
   }
 
   addFooterPageNumbers(doc);
@@ -626,17 +610,16 @@ function appendInformativoResumoPdf(doc: jsPDF, resumo: RelatorioInformativoResu
   const m = 10;
 
   for (const s of sections) {
+    if (s.items.length === 0) continue;
     if (y > pageH - 32) {
       doc.addPage();
       y = 12;
     }
-    const bodyResumo: RowInput[] = s.items.length
-      ? chunkInformativo(s.items, INFORMATIVO_PDF_COLS).map((chunk) => {
-          const row = [...chunk];
-          while (row.length < INFORMATIVO_PDF_COLS) row.push('');
-          return row;
-        })
-      : [[{ content: 'Nenhuma', colSpan: INFORMATIVO_PDF_COLS, styles: { halign: 'center' as const } }]];
+    const bodyResumo: RowInput[] = chunkInformativo(s.items, INFORMATIVO_PDF_COLS).map((chunk) => {
+      const row = [...chunk];
+      while (row.length < INFORMATIVO_PDF_COLS) row.push('');
+      return row;
+    });
     autoTable(doc, {
       startY: y,
       head: [informativoPdfHeadTituloLinha(`${s.title} (Total de ${s.items.length} unidades)`)],
@@ -704,7 +687,7 @@ export async function exportRelatorioInformativoPdf(
 
   const bodyComWide: RowInput[] = com.length
     ? bodyInformativoComConsumoGrid(com)
-    : [[{ content: 'Nenhuma unidade nesta faixa.', colSpan: INFORMATIVO_PDF_COLS, styles: { halign: 'center' as const } }]];
+    : [['', '', '', '']];
 
   const colStylesCom: Record<number, { halign: 'left'; cellWidth: number }> = {};
   for (let c = 0; c < INFORMATIVO_PDF_COLS; c++) {
@@ -728,22 +711,20 @@ export async function exportRelatorioInformativoPdf(
 
   y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 5;
 
-  const bodySemWide: RowInput[] = sem.length
-    ? bodyInformativoSemConsumoGrid(sem)
-    : [[{ content: 'Nenhuma', colSpan: INFORMATIVO_PDF_COLS, styles: { halign: 'center' as const } }]];
-
-  autoTable(doc, {
-    startY: y,
-    head: [informativoPdfHeadTituloLinha(`Unidades sem consumo (Total de ${sem.length} unidades)`)],
-    body: bodySemWide,
-    headStyles: INFORMATIVO_PDF_HEAD_STYLES,
-    styles: { fontSize: 7, cellPadding: 0.5, halign: 'center', valign: 'middle' },
-    margin: { left: m, right: m, bottom: 12 },
-    theme: 'striped',
-    columnStyles: Object.fromEntries(
-      Array.from({ length: INFORMATIVO_PDF_COLS }, (_, i) => [i, { cellWidth: 45 }])
-    ),
-  });
+  if (sem.length > 0) {
+    autoTable(doc, {
+      startY: y,
+      head: [informativoPdfHeadTituloLinha(`Unidades sem consumo (Total de ${sem.length} unidades)`)],
+      body: bodyInformativoSemConsumoGrid(sem),
+      headStyles: INFORMATIVO_PDF_HEAD_STYLES,
+      styles: { fontSize: 7, cellPadding: 0.5, halign: 'center', valign: 'middle' },
+      margin: { left: m, right: m, bottom: 12 },
+      theme: 'striped',
+      columnStyles: Object.fromEntries(
+        Array.from({ length: INFORMATIVO_PDF_COLS }, (_, i) => [i, { cellWidth: 45 }])
+      ),
+    });
+  }
 
   if (resumo) {
     appendInformativoResumoPdf(doc, resumo);
@@ -775,7 +756,7 @@ function downloadExcelBuffer(buffer: ExcelJS.Buffer, filename: string): void {
 
 /**
  * Planilha no padrão legado: só unidades; cabeçalho com datas; total final só em valor a pagar.
- * Lixeiras / hidrômetro / conferência CAESB ficam só no PDF.
+ * Lixeiras / hidrômetro / resumo CAESB ficam só no PDF.
  */
 async function exportRelatorioGeralLegacyExcel(rows: GeneralReportRow[]): Promise<boolean> {
   if (rows.length === 0) return false;

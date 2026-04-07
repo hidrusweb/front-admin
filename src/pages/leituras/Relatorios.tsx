@@ -17,7 +17,9 @@ import {
   type RelatorioInformativoResumoExport,
 } from '../../lib/exportRelatorioGeral';
 import DemonstrativoConta, { type UnitBill } from '../../components/conta/DemonstrativoConta';
+import DemonstrativoEnvelopeVerso from '../../components/conta/DemonstrativoEnvelopeVerso';
 import { logoHydrusHorizontalAbsoluteUrl } from '../../lib/branding';
+import { printMinimizingBrowserDecorations } from '../../lib/printMinimal';
 import { mapCondominio, mapTabelaImposto, mapUnidade, normalizeApiList } from '../../lib/hidrusApi';
 import { isoDateToDdMmYyyy } from '../../lib/formatDateBr';
 
@@ -579,7 +581,9 @@ export default function Relatorios() {
           toast.error(`${falhas} unidade(s) não puderam ser geradas (sem leitura no período ou erro).`);
         }
         if (bills.length > 0) {
-          toast.success(`${bills.length} demonstrativo(s) gerado(s). Use Imprimir para todos.`);
+          toast.success(
+            `${bills.length} demonstrativo(s) gerado(s). Cada unidade: 1ª página envelope, 2ª página demonstrativo. Use Imprimir.`
+          );
         } else if (falhas === 0) {
           toast.error('Nenhum demonstrativo retornado.');
         }
@@ -894,8 +898,9 @@ export default function Relatorios() {
               {type === 'demonstrativo' && demoBills.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => printMinimizingBrowserDecorations()}
                   className="btn-secondary px-3 whitespace-nowrap"
+                  title='Para ocultar data, URL e número da página: no Chrome/Edge, em "Mais definições", desmarque Cabeçalhos e rodapés.'
                 >
                   Imprimir
                 </button>
@@ -1534,13 +1539,16 @@ export default function Relatorios() {
       {type === 'demonstrativo' && demoBills.length > 0 && (
         <div className="w-full min-w-0 space-y-8 print:space-y-0">
           {demoBills.map((bill, i) => (
-            <div key={`${bill.IdUnidade ?? 'u'}-${i}`} className="demonstrativo-bill-break">
-              <DemonstrativoConta
-                bill={bill}
-                anoRef={anoMesDemonstrativo.y}
-                mesRef={anoMesDemonstrativo.m}
-                showPrintButton={false}
-              />
+            <div key={`${bill.IdUnidade ?? 'u'}-${i}`} className="demonstrativo-bill-pack">
+              <DemonstrativoEnvelopeVerso bill={bill} />
+              <div className="demonstrativo-bill-front">
+                <DemonstrativoConta
+                  bill={bill}
+                  anoRef={anoMesDemonstrativo.y}
+                  mesRef={anoMesDemonstrativo.m}
+                  showPrintButton={false}
+                />
+              </div>
             </div>
           ))}
         </div>

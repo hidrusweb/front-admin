@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { logoHydrusHorizontalAbsoluteUrl } from '../../lib/branding';
+import { printMinimizingBrowserDecorations } from '../../lib/printMinimal';
 
 /** Resposta de GET /reports/bill/unidade/{id}. */
 export interface UnitBill {
@@ -536,7 +537,8 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
       {showPrintButton && (
         <button
           type="button"
-          onClick={() => window.print()}
+          onClick={() => printMinimizingBrowserDecorations()}
+          title='Para ocultar data, URL e número da página: no Chrome/Edge, em "Mais definições", desmarque Cabeçalhos e rodapés.'
           className="print:hidden fixed bottom-6 right-6 z-50 rounded-full bg-slate-900 text-white px-5 py-3 text-sm font-medium shadow-lg hover:bg-slate-800 transition-colors"
         >
           Imprimir

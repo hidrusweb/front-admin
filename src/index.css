@@ -112,11 +112,29 @@
     height: 9rem !important;
   }
 
-  .demonstrativo-bill-break {
+  /* Cada unidade: 1ª folha envelope, 2ª demonstrativo; depois quebra para a próxima unidade. */
+  .demonstrativo-bill-pack {
     break-after: page;
   }
-  .demonstrativo-bill-break:last-child {
+  .demonstrativo-bill-pack:last-child {
     break-after: auto;
+  }
+  /*
+   * Uma única quebra após o envelope (evita folha em branco: min-height 100vh + break-before no bloco
+   * seguinte costumava gerar página extra no Chrome).
+   */
+  .demonstrativo-envelope-verso {
+    box-sizing: border-box;
+    break-after: page;
+    min-height: 0 !important;
+  }
+  .demonstrativo-envelope-verso,
+  .demonstrativo-envelope-verso * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .demonstrativo-bill-front .demonstrativo-print-root {
+    min-height: 0 !important;
   }
   .demonstrativo-print-root .print-a4-tight {
     padding-top: 0.25rem;

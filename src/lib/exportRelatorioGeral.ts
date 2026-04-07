@@ -17,6 +17,8 @@ export type GeneralReportRow = {
   dataInicial: string;
   dataFinal: string;
   dataProximaLeitura: string;
+  /** Padrão CAESB do condomínio (relatório geral / conferência com conta CAESB). */
+  usaPadraoCaesb?: boolean;
 };
 
 /** Resumo do relatório geral (legado: formulário + tabela “Lixeiras”), opcional no export. */
@@ -24,6 +26,8 @@ export type RelatorioGeralResumoExport = {
   dataCaesb?: string;
   totalConsumo?: number;
   totalCaesb?: number;
+  /** Quando true, inclui o quadro de conferência entre total das unidades e valor da conta CAESB (legado). */
+  conferenciaCaesb?: boolean;
   leituraAnteriorCondominio?: number;
   leituraAtualCondominio?: number;
   lixeiras: Array<{
@@ -81,7 +85,7 @@ function appendResumoPdf(doc: jsPDF, resumo: RelatorioGeralResumoExport): void {
           : '—',
       ],
     ],
-    styles: { fontSize: 8, cellPadding: 1.2 },
+    styles: { fontSize: 8, cellPadding: 1.2, halign: 'center' },
     headStyles: { fillColor: [30, 64, 120] },
     margin: { left: 14, right: 14 },
   });
@@ -106,9 +110,10 @@ function appendResumoPdf(doc: jsPDF, resumo: RelatorioGeralResumoExport): void {
         ]),
         ['', '', 'Total', formatConsumoRelatorioGeralM3(tot)],
       ],
-      styles: { fontSize: 8, cellPadding: 1.2 },
+      styles: { fontSize: 8, cellPadding: 1.2, halign: 'center' },
       headStyles: { fillColor: [30, 64, 120] },
       margin: { left: 14, right: 14 },
+      columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
       didParseCell: (data) => {
         if (data.section === 'body' && data.row.index === resumo.lixeiras.length) {
           data.cell.styles.fontStyle = 'bold';
@@ -130,9 +135,70 @@ function appendResumoPdf(doc: jsPDF, resumo: RelatorioGeralResumoExport): void {
     startY: y,
     head: [['Leitura anterior', 'Leitura atual', 'Consumo (m³)']],
     body: [[String(ant), String(atu), formatConsumoRelatorioGeralM3(atu - ant)]],
-    styles: { fontSize: 8, cellPadding: 1.2 },
+    styles: { fontSize: 8, cellPadding: 1.2, halign: 'center' },
     headStyles: { fillColor: [30, 64, 120] },
     margin: { left: 14, right: 14 },
+    columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 2: { halign: 'center' } },
+  });
+}
+
+function appendConferenciaCaesbPdf(
+  doc: jsPDF,
+  rows: GeneralReportRow[],
+  resumo: RelatorioGeralResumoExport
+): void {
+  if (!rows[0]?.usaPadraoCaesb || !resumo.conferenciaCaesb) return;
+  const totalCaesb = resumo.totalCaesb ?? 0;
+  const totalAPagar = totals(rows).valorPagar;
+  const n = rows.length;
+  const fmt = (v: number) =>
+    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let y = ((doc as any).lastAutoTable?.finalY as number | undefined) ?? 40;
+  y += 10;
+  const pageH = doc.internal.pageSize.getHeight();
+  if (y > pageH - 42) {
+    doc.addPage();
+    y = 14;
+  }
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text('Conferência (padrão CAESB)', 14, y);
+  y += 6;
+  doc.setFont('helvetica', 'normal');
+
+  const escuro: [number, number, number] = [45, 55, 72];
+  const claro: [number, number, number] = [226, 232, 240];
+
+  const body: string[][] =
+    totalAPagar >= totalCaesb
+      ? [
+          [`1. Total das ${n} unidades`, `==> ${fmt(totalAPagar)}`],
+          [`2. Conta CAESB`, `==> ${fmt(totalCaesb)}`],
+          [`3. Diferença`, `==> ${fmt(totalAPagar - totalCaesb)}`],
+        ]
+      : [
+          [`1. Conta CAESB`, `==> ${fmt(totalCaesb)}`],
+          [`2. Total das ${n} unidades`, `==> ${fmt(totalAPagar)}`],
+          [`3. Diferença`, `==> ${fmt(totalCaesb - totalAPagar)}`],
+        ];
+
+  autoTable(doc, {
+    startY: y,
+    body,
+    theme: 'plain',
+    styles: { fontSize: 9, cellPadding: 1.6 },
+    columnStyles: { 0: { cellWidth: 105 }, 1: { cellWidth: 72 } },
+    didParseCell: (data) => {
+      const i = data.row.index;
+      const fundo = i % 2 === 0 ? escuro : claro;
+      data.cell.styles.fillColor = fundo;
+      data.cell.styles.textColor = i % 2 === 0 ? [255, 255, 255] : [30, 30, 30];
+      if (i === 2) data.cell.styles.fontStyle = 'bold';
+    },
   });
 }
 
@@ -243,6 +309,7 @@ export function parseGeneralReportApi(data: unknown): GeneralReportRow[] {
       dataInicial: fmtDateBr(r.DataInicial ?? r.dataInicial),
       dataFinal: fmtDateBr(r.DataFinal ?? r.dataFinal),
       dataProximaLeitura: fmtDateBr(r.DataProximaLeitura ?? r.dataProximaLeitura),
+      usaPadraoCaesb: Boolean(r.UsaPadraoCaesb ?? r.usaPadraoCaesb ?? false),
     };
   });
 }
@@ -260,16 +327,81 @@ function totals(rows: GeneralReportRow[]) {
   );
 }
 
-const PDF_HEAD = [
-  [
-    'Ordem',
-    'Unidade',
-    'Leit. ant.',
-    'Leit. atual',
-    'Consumo (m³)',
-    'Valor a pagar',
-  ],
-];
+function parseDataFinalRelatorioGeralBr(dataFinalBr: string): Date | null {
+  const s = String(dataFinalBr).trim();
+  const dmY = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s);
+  if (dmY) {
+    const [, d, mo, y] = dmY;
+    return new Date(Number(y), Number(mo) - 1, Number(d));
+  }
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (ymd) {
+    const [, y, mo, d] = ymd;
+    return new Date(Number(y), Number(mo) - 1, Number(d));
+  }
+  return null;
+}
+
+/** Legado: antes de 01/06/2020 a coluna é “Valor excedente”; depois, “Tarifa fixa”. */
+export function relatorioGeralColunaValorExcedente(dataFinalBr: string): boolean {
+  const dt = parseDataFinalRelatorioGeralBr(dataFinalBr);
+  if (!dt) return false;
+  return dt < new Date(2020, 5, 1);
+}
+
+/** Célula da coluna tarifa fixa / valor excedente (mesma regra do RelatorioGeral.cshtml). */
+export function formatRelatorioGeralTarifaOuExcedente(
+  r: GeneralReportRow,
+  rows: GeneralReportRow[],
+  useValorExcedente: boolean
+): string {
+  if (useValorExcedente) {
+    return r.valorExcedente.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+  const zero = rows.find((x) => x.consumo === 0);
+  if (!zero) {
+    const v = r.leituraAtual - r.leituraAnterior;
+    return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  const first = rows[0];
+  const v = zero.valorPagar - (first?.valorAreaComum ?? 0);
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function footerRelatorioGeralTarifaOuExcedente(
+  rows: GeneralReportRow[],
+  useValorExcedente: boolean
+): string {
+  if (!useValorExcedente) return '';
+  const s = rows.reduce((a, r) => a + r.valorExcedente, 0);
+  return s.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function pdfHeadRelatorioGeral(tarifaOuExcedenteTitle: string): string[][] {
+  return [
+    [
+      'Ordem',
+      'Unidade',
+      'Leitura anterior',
+      'Leitura atual',
+      'Consumo (m³)',
+      tarifaOuExcedenteTitle,
+      'Valor a pagar',
+    ],
+  ];
+}
+
+function addFooterPageNumbers(doc: jsPDF): void {
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const total = doc.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Página ${i} de ${total}`, pageW / 2, pageH - 8, { align: 'center' });
+  }
+}
 
 export type TabelaRelatorioExportOptions = {
   titulo: string;
@@ -288,12 +420,14 @@ async function exportRelatorioTabelaPdf(
   const periodo = `${rows[0]?.dataInicial ?? '—'} a ${rows[0]?.dataFinal ?? '—'}`;
   const prox = rows[0]?.dataProximaLeitura ? `Próx. leitura: ${rows[0].dataProximaLeitura}` : '';
   const t = totals(rows);
+  const useValorExcedente = relatorioGeralColunaValorExcedente(rows[0]?.dataFinal ?? '');
+  const colTarifaTitle = useValorExcedente ? 'Valor excedente' : 'Tarifa fixa';
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const m = 14;
   const y0 = 12;
   const pageW = doc.internal.pageSize.getWidth();
-  const textRightX = pageW - m;
+  const cx = pageW / 2;
 
   const logo = await loadHydrusLogoForPdf(48);
   let logoBottom = y0;
@@ -305,24 +439,23 @@ async function exportRelatorioTabelaPdf(
   let ly = y0 + 5;
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
-  doc.text(opt.titulo, textRightX, ly, { align: 'right' });
+  doc.text(opt.titulo, cx, ly, { align: 'center' });
   ly += 6;
   doc.setFontSize(10);
-  doc.text(nome, textRightX, ly, { align: 'right' });
+  doc.text(nome, cx, ly, { align: 'center' });
   ly += 5;
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Período: ${periodo}`, textRightX, ly, { align: 'right' });
+  doc.text(`Período: ${periodo}`, cx, ly, { align: 'center' });
   ly += 4;
   if (prox) {
-    doc.text(prox, textRightX, ly, { align: 'right' });
+    doc.text(prox, cx, ly, { align: 'center' });
     ly += 4;
   }
   for (const line of opt.linhasExtras ?? []) {
-    doc.text(line, textRightX, ly, { align: 'right' });
+    doc.text(line, cx, ly, { align: 'center' });
     ly += 4;
   }
-  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, textRightX, ly, { align: 'right' });
   ly += 2;
   doc.setTextColor(0, 0, 0);
 
@@ -334,6 +467,7 @@ async function exportRelatorioTabelaPdf(
     r.leituraAnterior.toLocaleString('pt-BR'),
     r.leituraAtual.toLocaleString('pt-BR'),
     formatConsumoRelatorioGeralM3(r.consumo),
+    formatRelatorioGeralTarifaOuExcedente(r, rows, useValorExcedente),
     r.valorPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
   ]);
 
@@ -343,16 +477,26 @@ async function exportRelatorioTabelaPdf(
     '',
     '',
     formatConsumoRelatorioGeralM3(t.consumo),
+    footerRelatorioGeralTarifaOuExcedente(rows, useValorExcedente),
     t.valorPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
   ]);
 
   autoTable(doc, {
     startY: y,
-    head: PDF_HEAD,
+    head: pdfHeadRelatorioGeral(colTarifaTitle),
     body,
     styles: { fontSize: 7, cellPadding: 1 },
-    headStyles: { fillColor: [30, 64, 120] },
+    headStyles: { fillColor: [30, 64, 120], fontSize: 9 },
     margin: { left: 10, right: 10 },
+    columnStyles: {
+      0: { halign: 'center' },
+      1: { halign: 'left' },
+      2: { halign: 'center' },
+      3: { halign: 'center' },
+      4: { halign: 'center' },
+      5: { halign: 'center' },
+      6: { halign: 'center' },
+    },
     didParseCell: (data) => {
       if (data.section === 'body' && data.row.index === body.length - 1) {
         data.cell.styles.fontStyle = 'bold';
@@ -364,6 +508,11 @@ async function exportRelatorioTabelaPdf(
   if (opt.resumo) {
     appendResumoPdf(doc, opt.resumo);
   }
+  if (opt.resumo) {
+    appendConferenciaCaesbPdf(doc, rows, opt.resumo);
+  }
+
+  addFooterPageNumbers(doc);
 
   doc.save(`${opt.nomeArquivoPrefix}-${slugifyFilename(nome)}-${fileDateStamp()}.pdf`);
   return true;
@@ -536,14 +685,17 @@ export async function exportRelatorioInformativoPdf(
   return true;
 }
 
-const XLS_HEAD = [
-  'Ordem',
-  'Unidade',
-  'Leitura anterior',
-  'Leitura atual',
-  'Consumo (m³)',
-  'Valor a pagar (R$)',
-];
+function xlsHeadRelatorioGeral(useValorExcedente: boolean): string[] {
+  return [
+    'Ordem',
+    'Unidade',
+    'Leitura anterior',
+    'Leitura atual',
+    'Consumo (m³)',
+    useValorExcedente ? 'Valor excedente (R$)' : 'Tarifa fixa',
+    'Valor a pagar (R$)',
+  ];
+}
 
 type ExcelMeta = {
   titulo: string;
@@ -557,6 +709,10 @@ function exportRelatorioTabelaExcel(rows: GeneralReportRow[], meta: ExcelMeta): 
 
   const nome = rows[0]?.nomeCondominio || 'Condomínio';
   const t = totals(rows);
+  const useValorExcedente = relatorioGeralColunaValorExcedente(rows[0]?.dataFinal ?? '');
+  const tarifaFooter = useValorExcedente
+    ? rows.reduce((a, r) => a + r.valorExcedente, 0)
+    : '';
 
   const headerBlock: (string | number)[][] = [
     [meta.titulo],
@@ -564,27 +720,38 @@ function exportRelatorioTabelaExcel(rows: GeneralReportRow[], meta: ExcelMeta): 
     ['Período', `${rows[0]?.dataInicial ?? ''} a ${rows[0]?.dataFinal ?? ''}`],
     ['Próxima leitura', rows[0]?.dataProximaLeitura ?? ''],
     ...(meta.linhasExtras ?? []).map(([a, b]) => [a, b]),
-    ['Gerado em', new Date().toLocaleString('pt-BR')],
     [],
   ];
 
   const aoa: (string | number)[][] = [
     ...headerBlock,
-    XLS_HEAD,
-    ...rows.map((r, i) => [
-      i + 1,
-      r.unidade,
-      r.leituraAnterior,
-      r.leituraAtual,
-      consumoRelatorioGeralCellValue(r.consumo),
-      r.valorPagar,
-    ]),
+    xlsHeadRelatorioGeral(useValorExcedente),
+    ...rows.map((r, i) => {
+      const tarifaCell = useValorExcedente
+        ? r.valorExcedente
+        : (() => {
+            const zero = rows.find((x) => x.consumo === 0);
+            if (!zero) return r.leituraAtual - r.leituraAnterior;
+            const first = rows[0];
+            return zero.valorPagar - (first?.valorAreaComum ?? 0);
+          })();
+      return [
+        i + 1,
+        r.unidade,
+        r.leituraAnterior,
+        r.leituraAtual,
+        consumoRelatorioGeralCellValue(r.consumo),
+        tarifaCell,
+        r.valorPagar,
+      ];
+    }),
     [
       'Totais',
       '',
       '',
       '',
       consumoRelatorioGeralCellValue(t.consumo),
+      tarifaFooter,
       t.valorPagar,
     ],
   ];
@@ -620,6 +787,28 @@ function exportRelatorioTabelaExcel(rows: GeneralReportRow[], meta: ExcelMeta): 
         rx.leituraAtualCondominio ?? 0,
         (rx.leituraAtualCondominio ?? 0) - (rx.leituraAnteriorCondominio ?? 0),
       ]
+    );
+  }
+
+  if (meta.resumo?.conferenciaCaesb && rows[0]?.usaPadraoCaesb) {
+    const rx = meta.resumo;
+    const totalCaesb = rx.totalCaesb ?? 0;
+    const totalAPagar = t.valorPagar;
+    const n = rows.length;
+    aoa.push(
+      [],
+      ['Conferência (padrão CAESB)'],
+      ...(totalAPagar >= totalCaesb
+        ? [
+            [`1. Total das ${n} unidades (R$)`, totalAPagar],
+            ['2. Conta CAESB (R$)', totalCaesb],
+            ['3. Diferença (R$)', totalAPagar - totalCaesb],
+          ]
+        : [
+            ['1. Conta CAESB (R$)', totalCaesb],
+            [`2. Total das ${n} unidades (R$)`, totalAPagar],
+            ['3. Diferença (R$)', totalCaesb - totalAPagar],
+          ])
     );
   }
 

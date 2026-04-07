@@ -10,7 +10,9 @@ import {
   exportRelatorioInformativoExcel,
   exportRelatorioInformativoPdf,
   formatConsumoRelatorioGeralM3,
+  formatRelatorioGeralTarifaOuExcedente,
   parseGeneralReportApi,
+  relatorioGeralColunaValorExcedente,
   type GeneralReportRow,
   type RelatorioGeralResumoExport,
   type RelatorioInformativoResumoExport,
@@ -417,6 +419,7 @@ export default function Relatorios() {
       dataCaesb: resumoGeral.dataCaesb.trim() || undefined,
       totalConsumo: Number.parseInt(resumoGeral.totalConsumoStr, 10) || 0,
       totalCaesb: parseBrlMonetaryForm(resumoGeral.totalCaesbStr),
+      conferenciaCaesb: resumoGeral.totalCaesbStr.trim() !== '',
       leituraAnteriorCondominio: Number.parseInt(resumoGeral.leituraAntCondStr, 10) || 0,
       leituraAtualCondominio: Number.parseInt(resumoGeral.leituraAtualCondStr, 10) || 0,
       lixeiras,
@@ -462,6 +465,15 @@ export default function Relatorios() {
   }, [type, informativeRows.length, resumoInformativo]);
 
   const tabelaPreviewRows: GeneralReportRow[] = type === 'geral' ? generalRows : [];
+
+  const relatorioGeralTarifaMode = useMemo(() => {
+    if (type !== 'geral' || generalRows.length === 0) return null;
+    const useValorExcedente = relatorioGeralColunaValorExcedente(generalRows[0]?.dataFinal ?? '');
+    return {
+      useValorExcedente,
+      header: useValorExcedente ? 'Valor excedente' : 'Tarifa fixa',
+    };
+  }, [type, generalRows]);
 
   const handleGenerate = async () => {
     if (!condominioId) {
@@ -1288,13 +1300,13 @@ export default function Relatorios() {
       {type === 'geral' && tabelaPreviewRows.length > 0 && (
         <div className="w-full min-w-0 space-y-4 print:overflow-visible">
           <div className="rounded-lg border border-gray-200 bg-[#d2d2d2] px-4 py-4 shadow-sm">
-            <div className="flex flex-row items-center justify-between gap-3 min-w-0">
+            <div className="flex flex-row items-start justify-between gap-3 min-w-0">
               <img
                 src={logoHydrusHorizontalAbsoluteUrl()}
                 alt="HIDRUS"
                 className="hydrus-print-logo h-10 sm:h-11 w-auto max-w-[min(46%,200px)] sm:max-w-[220px] object-contain object-left shrink-0"
               />
-              <div className="flex-1 min-w-0 text-right">
+              <div className="flex-1 min-w-0 flex flex-col items-center text-center px-2">
                 <p className="text-base font-semibold text-gray-900 leading-snug">
                   {tabelaPreviewRows[0]?.nomeCondominio || 'Condomínio'}
                 </p>
@@ -1313,12 +1325,23 @@ export default function Relatorios() {
             <table className="min-w-full text-sm text-left">
               <thead className="bg-slate-800 text-white">
                 <tr>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-center w-14">Ordem</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap">Unidade</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Leit. ant.</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Leit. atual</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Consumo (m³)</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Valor a pagar</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center w-14">Ordem</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap">Unidade</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
+                    Leitura anterior
+                  </th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
+                    Leitura atual
+                  </th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
+                    Consumo (m³)
+                  </th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
+                    {relatorioGeralTarifaMode?.header ?? 'Tarifa fixa'}
+                  </th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
+                    Valor a pagar
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
@@ -1326,12 +1349,23 @@ export default function Relatorios() {
                   <tr key={`${r.unidade}-${i}`} className="hover:bg-slate-50">
                     <td className="px-3 py-2 text-center tabular-nums text-gray-700">{i + 1}</td>
                     <td className="px-3 py-2 text-gray-900">{r.unidade}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{r.leituraAnterior}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{r.leituraAtual}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    <td className="px-3 py-2 text-center tabular-nums">{r.leituraAnterior}</td>
+                    <td className="px-3 py-2 text-center tabular-nums">{r.leituraAtual}</td>
+                    <td className="px-3 py-2 text-center tabular-nums">
                       {formatConsumoRelatorioGeralM3(r.consumo)}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-900">{fmtBrl(r.valorPagar)}</td>
+                    <td className="px-3 py-2 text-center tabular-nums">
+                      {relatorioGeralTarifaMode
+                        ? formatRelatorioGeralTarifaOuExcedente(
+                            r,
+                            tabelaPreviewRows,
+                            relatorioGeralTarifaMode.useValorExcedente
+                          )
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-center tabular-nums font-medium text-slate-900">
+                      {fmtBrl(r.valorPagar)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1340,10 +1374,15 @@ export default function Relatorios() {
                   <td className="px-3 py-2" colSpan={4}>
                     Totais
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2 text-center tabular-nums">
                     {formatConsumoRelatorioGeralM3(tabelaPreviewRows.reduce((a, r) => a + r.consumo, 0))}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2 text-center tabular-nums">
+                    {relatorioGeralTarifaMode?.useValorExcedente
+                      ? fmtBrl(tabelaPreviewRows.reduce((a, r) => a + r.valorExcedente, 0))
+                      : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-center tabular-nums">
                     {fmtBrl(tabelaPreviewRows.reduce((a, r) => a + r.valorPagar, 0))}
                   </td>
                 </tr>
@@ -1436,7 +1475,7 @@ export default function Relatorios() {
                       />
                     </div>
                     <div className="flex flex-col gap-1 min-w-[7rem] w-[7.5rem]">
-                      <label className="text-xs font-medium text-gray-600">Leit. ant.</label>
+                      <label className="text-xs font-medium text-gray-600">Leitura anterior</label>
                       <input
                         type="number"
                         className={inputBarClass}
@@ -1445,7 +1484,7 @@ export default function Relatorios() {
                       />
                     </div>
                     <div className="flex flex-col gap-1 min-w-[7rem] w-[7.5rem]">
-                      <label className="text-xs font-medium text-gray-600">Leit. atual</label>
+                      <label className="text-xs font-medium text-gray-600">Leitura atual</label>
                       <input
                         type="number"
                         className={inputBarClass}
@@ -1465,10 +1504,10 @@ export default function Relatorios() {
                       <table className="min-w-full text-sm text-left">
                         <thead className="bg-slate-800 text-white">
                           <tr>
-                            <th className="px-3 py-2 font-medium">Bloco</th>
-                            <th className="px-3 py-2 font-medium text-right">Leitura anterior</th>
-                            <th className="px-3 py-2 font-medium text-right">Leitura atual</th>
-                            <th className="px-3 py-2 font-medium text-right">Consumo</th>
+                            <th className="px-3 py-2 font-medium text-center">Bloco</th>
+                            <th className="px-3 py-2 font-medium text-center">Leitura anterior</th>
+                            <th className="px-3 py-2 font-medium text-center">Leitura atual</th>
+                            <th className="px-3 py-2 font-medium text-center">Consumo</th>
                             <th className="px-3 py-2 font-medium text-center w-24">Remover?</th>
                           </tr>
                         </thead>
@@ -1479,10 +1518,10 @@ export default function Relatorios() {
                             )
                             .map((lix) => (
                               <tr key={lix.id} className="hover:bg-slate-50">
-                                <td className="px-3 py-2 text-gray-900">{lix.agrupamento}</td>
-                                <td className="px-3 py-2 text-right tabular-nums">{lix.leituraAnterior}</td>
-                                <td className="px-3 py-2 text-right tabular-nums">{lix.leituraAtual}</td>
-                                <td className="px-3 py-2 text-right tabular-nums">
+                                <td className="px-3 py-2 text-center text-gray-900">{lix.agrupamento}</td>
+                                <td className="px-3 py-2 text-center tabular-nums">{lix.leituraAnterior}</td>
+                                <td className="px-3 py-2 text-center tabular-nums">{lix.leituraAtual}</td>
+                                <td className="px-3 py-2 text-center tabular-nums">
                                   {lix.leituraAtual - lix.leituraAnterior}
                                 </td>
                                 <td className="px-3 py-2 text-center">

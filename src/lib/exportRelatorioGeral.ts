@@ -673,7 +673,7 @@ export async function exportRelatorioInformativoPdf(
   const m = 10;
   const y0 = 10;
   const pageW = doc.internal.pageSize.getWidth();
-  const textRightX = pageW - m;
+  const cx = pageW / 2;
 
   const logo = await loadHydrusLogoForPdf(36);
   let logoBottom = y0;
@@ -682,20 +682,20 @@ export async function exportRelatorioInformativoPdf(
     logoBottom = y0 + logo.h;
   }
 
-  let ly = y0 + 4;
+  let ly = y0 + 5;
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  doc.text(nome, textRightX, ly, { align: 'right' });
+  doc.text(nome, cx, ly, { align: 'center' });
   ly += 5;
   doc.setFontSize(14);
-  doc.text('Relatório informativo', textRightX, ly, { align: 'right' });
+  doc.text('Relatório informativo', cx, ly, { align: 'center' });
   ly += 6;
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Leitura de ${meta?.dataInicial ?? '—'} a ${meta?.dataFinal ?? '—'}`, textRightX, ly, { align: 'right' });
+  doc.text(`Leitura de ${meta?.dataInicial ?? '—'} a ${meta?.dataFinal ?? '—'}`, cx, ly, { align: 'center' });
   ly += 4;
   if (prox) {
-    doc.text(prox, textRightX, ly, { align: 'right' });
+    doc.text(prox, cx, ly, { align: 'center' });
     ly += 4;
   }
   doc.setTextColor(0, 0, 0);

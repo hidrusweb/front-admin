@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { ChangeEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ColumnDef } from '@tanstack/react-table';
@@ -34,6 +34,7 @@ const editSchema = z.object({
 });
 
 type EditForm = z.infer<typeof editSchema>;
+type CompetenciaDisponivel = { ano: number; mes: number };
 
 function mensagemErroApi(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -110,6 +111,23 @@ export default function LeiturasIndex() {
       return Promise.resolve([]);
     },
     enabled: !!(condominioId || agrupamentoId),
+  });
+
+  const { data: competenciasDisponiveis = [] } = useQuery<CompetenciaDisponivel[]>({
+    queryKey: ['leituras-competencias-by-cond', condominioId],
+    queryFn: async () => {
+      if (!condominioId) return [];
+      const r = await api.get(`/mensuration/condominio/${condominioId}/dates`);
+      return (Array.isArray(r.data) ? r.data : [])
+        .map((item: unknown) => {
+          const x = item as Record<string, unknown>;
+          const anoNum = Number(x.ano);
+          const mesNum = Number(x.mes);
+          return { ano: anoNum, mes: mesNum };
+        })
+        .filter((x) => Number.isInteger(x.ano) && x.ano > 0 && Number.isInteger(x.mes) && x.mes >= 1 && x.mes <= 12);
+    },
+    enabled: !!condominioId,
   });
 
   const { data: leituras = [], isLoading } = useQuery<Leitura[]>({
@@ -225,7 +243,38 @@ export default function LeiturasIndex() {
     { value: '12', label: 'Dezembro' },
   ];
 
-  const years = Array.from({ length: 5 }, (_, i) => String(currentYear - i));
+  const years = useMemo(() => {
+    const uniq = new Set<number>();
+    for (const c of competenciasDisponiveis) uniq.add(c.ano);
+    return [...uniq].sort((a, b) => b - a).map(String);
+  }, [competenciasDisponiveis]);
+
+  const monthsByYear = useMemo(() => {
+    if (!ano) return [];
+    const y = Number(ano);
+    const allowed = new Set(
+      competenciasDisponiveis
+        .filter((c) => c.ano === y)
+        .map((c) => String(c.mes))
+    );
+    return MONTHS.filter((m) => allowed.has(m.value));
+  }, [competenciasDisponiveis, ano]);
+
+  useEffect(() => {
+    if (!condominioId) return;
+    if (years.length === 0) {
+      if (ano !== '') setAno('');
+      if (mes !== '') setMes('');
+      return;
+    }
+    if (!years.includes(ano)) {
+      setAno(years[0]);
+      return;
+    }
+    if (monthsByYear.length > 0 && !monthsByYear.some((m) => m.value === mes)) {
+      setMes(monthsByYear[0].value);
+    }
+  }, [condominioId, years, monthsByYear, ano, mes]);
 
   const columns: ColumnDef<Leitura>[] = [
     {
@@ -328,7 +377,7 @@ export default function LeiturasIndex() {
           </div>
           <div>
             <label className="label">Ano</label>
-            <select className="input" value={ano} onChange={(e) => setAno(e.target.value)}>
+            <select className="input" value={ano} onChange={(e) => setAno(e.target.value)} disabled={!condominioId}>
               <option value="">Todos</option>
               {years.map((y) => (
                 <option key={y} value={y}>
@@ -339,9 +388,9 @@ export default function LeiturasIndex() {
           </div>
           <div>
             <label className="label">Mês</label>
-            <select className="input" value={mes} onChange={(e) => setMes(e.target.value)}>
+            <select className="input" value={mes} onChange={(e) => setMes(e.target.value)} disabled={!condominioId || !ano}>
               <option value="">Todos</option>
-              {MONTHS.map((m) => (
+              {monthsByYear.map((m) => (
                 <option key={m.value} value={m.value}>
                   {m.label}
                 </option>

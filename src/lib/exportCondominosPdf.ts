@@ -64,23 +64,25 @@ export async function exportCondominosPdf(
 
   const logo = await loadHydrusLogoForPdf(42);
   let y = m;
-  if (logo) {
-    doc.addImage(logo.dataUrl, 'PNG', m, y, logo.w, logo.h);
-    y += logo.h + 8;
-  } else {
-    y += 4;
-  }
+  const logoW = logo?.w ?? 0;
+  const logoH = logo?.h ?? 0;
+  const rightX = logo ? m + logoW + 8 : m;
+  const rightW = pageW - m - rightX;
+  if (logo) doc.addImage(logo.dataUrl, 'PNG', m, y, logoW, logoH);
 
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
-  const condoLines = doc.splitTextToSize(condoCab, pageW - 2 * m);
-  doc.text(condoLines, m, y);
-  y += condoLines.length * 6 + 6;
+  const condoLines = doc.splitTextToSize(condoCab, rightW);
+  const titleLines = doc.splitTextToSize('Condôminos', rightW);
+  const lineH = 5.6;
+  const stackH = (condoLines.length + titleLines.length) * lineH + 2;
+  const blockTop = y + (Math.max(logoH, stackH) - stackH) / 2;
 
+  doc.text(condoLines, rightX + rightW / 2, blockTop + lineH, { align: 'center' });
   doc.setFontSize(15);
-  doc.text('Condôminos', pageW / 2, y, { align: 'center' });
-  y += 10;
+  doc.text(titleLines, rightX + rightW / 2, blockTop + lineH * (condoLines.length + 1), { align: 'center' });
+  y += Math.max(logoH, stackH) + 8;
 
   doc.setFont('helvetica', 'normal');
 

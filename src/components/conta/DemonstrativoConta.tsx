@@ -94,16 +94,18 @@ function ReadingImageSlot({ src, maxHeightClass }: { src: string | null; maxHeig
   }, [src]);
   const showImage = Boolean(src) && !broken;
   return (
-    <div className="flex items-center justify-center min-h-[160px] print:min-h-0 w-full">
+    <div className="flex items-center justify-center min-h-[180px] print:min-h-0 w-full">
       {showImage ? (
-        <img
-          src={src!}
-          alt="Registro da leitura do hidrômetro"
-          className={`max-w-full object-contain rounded-xl ring-1 ring-slate-200 print-photo-max print:max-h-[5rem] ${maxHeightClass}`}
-          onError={() => setBroken(true)}
-        />
+        <div className={`w-full max-w-[520px] aspect-video overflow-hidden rounded-xl ring-1 ring-slate-200 ${maxHeightClass}`}>
+          <img
+            src={src!}
+            alt="Registro da leitura"
+            className="h-full w-full object-cover"
+            onError={() => setBroken(true)}
+          />
+        </div>
       ) : (
-        <div className="w-full h-40 rounded-xl bg-slate-100 flex flex-col items-center justify-center gap-1 px-3 text-center print:h-16 print:gap-0 print:px-2">
+        <div className="w-full max-w-[520px] aspect-video rounded-xl bg-slate-100 flex flex-col items-center justify-center gap-1 px-3 text-center print:h-16 print:gap-0 print:px-2">
           <p className="text-sm font-medium text-slate-600 print:text-[10px]">Sem imagem</p>
           <p className="text-xs text-slate-500 leading-snug print:text-[9px] print:leading-tight">
             Não há foto cadastrada ou a imagem não pôde ser carregada.
@@ -191,21 +193,13 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
           <div className="bg-gradient-to-br from-slate-50 via-white to-slate-50/30 px-5 py-4 border-b border-slate-100 print-a4-tight">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-medium text-slate-500">Condomínio</p>
-                <h2 className="text-lg font-semibold text-slate-900 leading-tight">{condoNome || '—'}</h2>
+                <h2 className="text-base font-semibold text-slate-900 leading-tight">{condoNome || '—'}</h2>
+                <p className="text-sm font-medium text-slate-800 leading-tight mt-0.5">
+                  {(bill.NomeCondomino ?? '—').replace(/"/g, '')}
+                </p>
               </div>
               <span className="shrink-0 inline-flex items-center rounded-full bg-cyan-50 text-cyan-800 px-3 py-1 text-sm font-medium ring-1 ring-cyan-100">
                 {unitLabel}
-              </span>
-            </div>
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 text-sm text-slate-600 w-full">
-              <span className="min-w-0">
-                <span className="text-slate-400">Condômino</span>{' '}
-                <span className="font-medium text-slate-800">{(bill.NomeCondomino ?? '—').replace(/"/g, '')}</span>
-              </span>
-              <span className="text-right tabular-nums">
-                <span className="text-slate-400">Hidrômetro</span>{' '}
-                <span className="font-medium text-slate-800">{bill.Hidrometro ?? '—'}</span>
               </span>
             </div>
           </div>
@@ -243,7 +237,7 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
                   </div>
                 </div>
               </div>
-              <ReadingImageSlot src={img} maxHeightClass="max-h-[280px]" />
+              <ReadingImageSlot src={img} maxHeightClass="max-h-[340px]" />
             </div>
           ) : (
             <div className="p-5 grid md:grid-cols-2 gap-6 print:grid-cols-2 print:gap-3 print:p-3 print-a4-tight">
@@ -274,7 +268,7 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
                   <p className="text-xl font-bold tabular-nums print:text-base">{brl(bill.ValorPagar)}</p>
                 </div>
               </div>
-              <ReadingImageSlot src={img} maxHeightClass="max-h-[320px]" />
+              <ReadingImageSlot src={img} maxHeightClass="max-h-[360px]" />
             </div>
           )}
         </div>

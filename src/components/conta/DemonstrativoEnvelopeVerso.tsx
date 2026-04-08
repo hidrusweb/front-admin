@@ -36,22 +36,16 @@ export default function DemonstrativoEnvelopeVerso({ bill }: Props) {
         <div className="space-y-6 text-left">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-slate-200 print:border-slate-300 pb-4">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Condomínio</p>
-              <p className="text-xl sm:text-2xl font-semibold text-slate-900 leading-snug">{condo}</p>
+              <p className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums tracking-tight">{condo}</p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
-                Unidade
-              </p>
-              <p className="text-2xl sm:text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+              <p className="text-2xl sm:text-3xl font-medium text-slate-900 tabular-nums tracking-tight">
                 {unitLine}
               </p>
             </div>
           </div>
-
-          <div className="pt-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Condômino</p>
-            <p className="text-lg sm:text-xl font-medium text-slate-800 leading-snug">{condomino}</p>
+          <div className="pt-1">
+            <p className="text-base sm:text-lg font-medium text-slate-800 leading-snug">{condomino}</p>
           </div>
         </div>
       </div>

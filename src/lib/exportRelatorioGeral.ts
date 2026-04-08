@@ -384,7 +384,7 @@ async function exportRelatorioTabelaPdf(
   const logo = await loadHydrusLogoForPdf(48);
   let logoBottom = y0;
   if (logo) {
-    doc.addImage(logo.dataUrl, 'PNG', m, y0, logo.w, logo.h);
+    doc.addImage(logo.dataUrl, logo.format, m, y0, logo.w, logo.h);
     logoBottom = y0 + logo.h;
   }
 
@@ -618,7 +618,7 @@ export async function exportRelatorioInformativoPdf(
   const logo = await loadHydrusLogoForPdf(36);
   let logoBottom = y0;
   if (logo) {
-    doc.addImage(logo.dataUrl, 'PNG', m, y0, logo.w, logo.h);
+    doc.addImage(logo.dataUrl, logo.format, m, y0, logo.w, logo.h);
     logoBottom = y0 + logo.h;
   }
 

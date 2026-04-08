@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ImageIcon, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
+import axios from 'axios';
 import api from '../../lib/api';
 import { mapCondominio, mapMensuration, mapUnidade } from '../../lib/hidrusApi';
 import { isoDateToDdMmYyyy } from '../../lib/formatDateBr';
@@ -34,6 +35,24 @@ const editSchema = z.object({
 
 type EditForm = z.infer<typeof editSchema>;
 
+function mensagemErroApi(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const d = err.response?.data as {
+      message?: string;
+      errors?: Record<string, string[]>;
+    };
+    if (d?.errors) {
+      const flat = Object.values(d.errors).flat().filter(Boolean);
+      if (flat.length) return flat.join(' ');
+    }
+    if (d?.message && !/^Request failed with status code \d+$/.test(d.message)) return d.message;
+    if (err.response?.status === 422) return 'Dados inválidos; verifique os campos e tente novamente.';
+    return err.message || 'Erro ao salvar';
+  }
+  if (err instanceof Error) return err.message;
+  return 'Erro ao salvar';
+}
+
 function tituloModalEditarLeitura(l: Leitura): string {
   const condo = l.condominio?.trim() ?? '';
   const unid = l.unidade?.trim() ?? '';
@@ -60,6 +79,7 @@ export default function LeiturasIndex() {
   const [editing, setEditing] = useState<Leitura | null>(null);
   const [imagemFile, setImagemFile] = useState<File | null>(null);
   const [imagemPreviewUrl, setImagemPreviewUrl] = useState<string | null>(null);
+  const [imagemCadastradaQuebrada, setImagemCadastradaQuebrada] = useState(false);
   const imagemInputRef = useRef<HTMLInputElement>(null);
 
   const { data: condominios = [] } = useQuery({
@@ -130,6 +150,9 @@ export default function LeiturasIndex() {
     if (!editing) {
       setImagemFile(null);
       setImagemPreviewUrl(null);
+      setImagemCadastradaQuebrada(false);
+    } else {
+      setImagemCadastradaQuebrada(false);
     }
   }, [editing]);
 
@@ -177,8 +200,8 @@ export default function LeiturasIndex() {
       setEditing(null);
       setImagemFile(null);
     },
-    onError: (e: Error) => {
-      toast.error(e.message || 'Erro ao salvar');
+    onError: (e: unknown) => {
+      toast.error(mensagemErroApi(e));
     },
   });
 
@@ -359,12 +382,22 @@ export default function LeiturasIndex() {
               >
                 {imagemPreviewUrl ? (
                   <img src={imagemPreviewUrl} alt="" className="mx-auto h-44 w-full max-h-52 object-contain sm:h-52" />
-                ) : editing.imagemUrl ? (
-                  <img src={editing.imagemUrl} alt="" className="mx-auto h-44 w-full max-h-52 object-contain sm:h-52" />
+                ) : editing.imagemUrl && !imagemCadastradaQuebrada ? (
+                  <img
+                    src={editing.imagemUrl}
+                    alt=""
+                    className="mx-auto h-44 w-full max-h-52 object-contain sm:h-52"
+                    onError={() => setImagemCadastradaQuebrada(true)}
+                  />
                 ) : (
                   <div className="flex h-44 w-full flex-col items-center justify-center gap-2 px-6 text-gray-500 sm:h-52">
                     <ImageIcon className="h-10 w-10 opacity-50" strokeWidth={1.25} />
-                    <span className="text-sm">Clique para adicionar foto</span>
+                    <span className="text-sm font-medium text-gray-600">Sem foto da leitura</span>
+                    <span className="text-xs text-center text-gray-500 leading-snug">
+                      {editing.imagemUrl
+                        ? 'A imagem cadastrada não pôde ser carregada. Envie uma nova foto se precisar.'
+                        : 'Clique para adicionar foto'}
+                    </span>
                   </div>
                 )}
               </button>

@@ -11,6 +11,7 @@ import Agrupamentos from './pages/admin/Agrupamentos';
 import Consumos from './pages/admin/Consumos';
 import Unidades from './pages/admin/Unidades';
 import FaixaImpostos from './pages/admin/FaixaImpostos';
+import ImportarImagensLeituras from './pages/admin/ferramentas/ImportarImagensLeituras';
 
 import LeiturasIndex from './pages/leituras/Index';
 import LeiturasCreate from './pages/leituras/Criar';
@@ -80,6 +81,14 @@ export default function App() {
           element={
             <PrivateRoute roles={ADMIN_ROLES}>
               <FaixaImpostos />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="admin/ferramentas/importar-imagens-leituras"
+          element={
+            <PrivateRoute roles={ADMIN_ROLES}>
+              <ImportarImagensLeituras />
             </PrivateRoute>
           }
         />

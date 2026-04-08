@@ -68,7 +68,7 @@ export async function exportCondominosPdf(
   const logoH = logo?.h ?? 0;
   const rightX = logo ? m + logoW + 8 : m;
   const rightW = pageW - m - rightX;
-  if (logo) doc.addImage(logo.dataUrl, 'PNG', m, y, logoW, logoH);
+  if (logo) doc.addImage(logo.dataUrl, logo.format, m, y, logoW, logoH);
 
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');

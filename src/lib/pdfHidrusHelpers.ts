@@ -4,7 +4,7 @@ import { logoHydrusHorizontalAbsoluteUrl } from './branding';
 /** Logo horizontal para PDF (mesma arte da tela). */
 export async function loadHydrusLogoForPdf(
   maxWidthMm: number
-): Promise<{ dataUrl: string; w: number; h: number } | null> {
+): Promise<{ dataUrl: string; format: 'PNG' | 'JPEG'; w: number; h: number } | null> {
   try {
     const url = logoHydrusHorizontalAbsoluteUrl();
     const res = await fetch(url);
@@ -26,7 +26,24 @@ export async function loadHydrusLogoForPdf(
     const nw = img.naturalWidth || img.width;
     const nh = img.naturalHeight || img.height;
     const h = nw > 0 ? (nh / nw) * w : maxWidthMm * 0.25;
-    return { dataUrl, w, h };
+
+    // Evita render intermitente de fundo escuro em PNG com transparência no jsPDF.
+    // Normaliza a logo em canvas com fundo branco e exporta como JPEG.
+    if (typeof document !== 'undefined' && nw > 0 && nh > 0) {
+      const canvas = document.createElement('canvas');
+      canvas.width = nw;
+      canvas.height = nh;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, nw, nh);
+        ctx.drawImage(img, 0, 0, nw, nh);
+        const jpegUrl = canvas.toDataURL('image/jpeg', 0.98);
+        return { dataUrl: jpegUrl, format: 'JPEG', w, h };
+      }
+    }
+
+    return { dataUrl, format: 'PNG', w, h };
   } catch {
     return null;
   }

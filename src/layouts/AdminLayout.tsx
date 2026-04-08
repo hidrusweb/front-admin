@@ -12,6 +12,8 @@ import {
   Upload,
   TrendingUp,
   Percent,
+  Wrench,
+  ImagePlus,
   LogOut,
   Menu,
   X,
@@ -46,6 +48,18 @@ const navItems: NavItem[] = [
     ],
   },
   {
+    label: 'Ferramentas',
+    icon: <Wrench size={18} />,
+    roles: ['ADMINISTRADOR', 'COLABORADOR', 'ADMINISTRATIVO'],
+    children: [
+      {
+        label: 'Imagens nas leituras',
+        to: '/admin/ferramentas/importar-imagens-leituras',
+        icon: <ImagePlus size={16} />,
+      },
+    ],
+  },
+  {
     label: 'Leituras',
     icon: <FileText size={18} />,
     children: [
@@ -66,7 +80,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(() => isLgViewport());
-  const [openGroups, setOpenGroups] = useState<string[]>(['Administração', 'Leituras']);
+  const [openGroups, setOpenGroups] = useState<string[]>(['Administração', 'Leituras', 'Ferramentas']);
 
   const userRole = user
     ? Array.isArray(user.role)

@@ -8,6 +8,7 @@ import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { mapConsumo, mapCondominio, mapTabelaImposto, payloadConsumoSave } from '../../lib/hidrusApi';
+import { isoDateToDdMmYyyy } from '../../lib/formatDateBr';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
 
@@ -142,12 +143,20 @@ export default function Consumos() {
 
   const columns: ColumnDef<Consumo>[] = [
     { accessorKey: 'condominioNome', header: 'Condomínio' },
-    { accessorKey: 'inicio', header: 'Início leituras', cell: ({ getValue }) => (getValue() as string)?.slice(0, 10) },
-    { accessorKey: 'fim', header: 'Fim leituras', cell: ({ getValue }) => (getValue() as string)?.slice(0, 10) },
+    {
+      accessorKey: 'inicio',
+      header: 'Início leituras',
+      cell: ({ getValue }) => isoDateToDdMmYyyy(getValue() as string | undefined),
+    },
+    {
+      accessorKey: 'fim',
+      header: 'Fim leituras',
+      cell: ({ getValue }) => isoDateToDdMmYyyy(getValue() as string | undefined),
+    },
     {
       accessorKey: 'dataProximaLeitura',
       header: 'Próx. leitura',
-      cell: ({ getValue }) => (getValue() as string)?.slice(0, 10) ?? '—',
+      cell: ({ getValue }) => isoDateToDdMmYyyy(getValue() as string | undefined),
     },
     {
       accessorKey: 'taxaMinima',

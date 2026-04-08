@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   Building2,
@@ -153,29 +153,20 @@ export default function Dashboard() {
     [condominiosRaw]
   );
 
-  const leiturasMesQueries = useQueries({
-    queries: activeCondoIds.map((id) => ({
-      queryKey: ['dashboard-leituras-mes', id, anoAtual, mesAtual] as const,
-      queryFn: async () => {
-        const r = await api.get(`/mensuration/condominio/${id}/ano/${anoAtual}/mes/${mesAtual}`);
-        return normalizeApiList(r.data).length;
-      },
-      enabled: isAdmin && activeCondoIds.length > 0,
-      staleTime: 2 * 60_000,
-    })),
+  const { data: leiturasMesAgg, isLoading: loadingLeiturasMes } = useQuery({
+    queryKey: ['dashboard-leituras-mes', anoAtual, mesAtual] as const,
+    queryFn: () =>
+      api
+        .get<{ totalLeituras: number; condominiosComLeitura: number }>('/mensuration/dashboard-mes', {
+          params: { ano: anoAtual, mes: mesAtual },
+        })
+        .then((r) => r.data),
+    enabled: isAdmin,
+    staleTime: 2 * 60_000,
   });
 
-  const leiturasNoMes = useMemo(
-    () => leiturasMesQueries.reduce((s, q) => s + (q.data ?? 0), 0),
-    [leiturasMesQueries]
-  );
-
-  const condominiosComLeituraNoMes = useMemo(
-    () => leiturasMesQueries.filter((q) => (q.data ?? 0) > 0).length,
-    [leiturasMesQueries]
-  );
-
-  const loadingLeiturasMes = leiturasMesQueries.some((q) => q.isLoading);
+  const leiturasNoMes = leiturasMesAgg?.totalLeituras ?? 0;
+  const condominiosComLeituraNoMes = leiturasMesAgg?.condominiosComLeitura ?? 0;
 
   const condosAtivos = condominiosRaw.filter((c) => c.ativo).length;
   const condosInativos = condominiosRaw.length - condosAtivos;
@@ -233,6 +224,22 @@ export default function Dashboard() {
           condomínios. Perfil: <span className="font-medium text-primary-700">{role || '—'}</span>
         </p>
       </div>
+
+      <section className="card">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Acesso rápido</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {visibleLinks.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-primary-300 hover:bg-primary-50/60 transition-colors text-sm font-medium text-gray-800 touch-manipulation min-h-[52px] group"
+            >
+              <span className="text-primary-600 shrink-0 group-hover:scale-105 transition-transform">{link.icon}</span>
+              <span className="truncate">{link.label}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       {!isAdmin && (
         <div className="card border-primary-100 bg-primary-50/40">
@@ -401,22 +408,6 @@ export default function Dashboard() {
           </section>
         </>
       )}
-
-      <section className="card">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Acesso rápido</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {visibleLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-primary-300 hover:bg-primary-50/60 transition-colors text-sm font-medium text-gray-800 touch-manipulation min-h-[52px] group"
-            >
-              <span className="text-primary-600 shrink-0 group-hover:scale-105 transition-transform">{link.icon}</span>
-              <span className="truncate">{link.label}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

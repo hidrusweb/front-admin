@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { addFooterPageNumbers, loadHydrusLogoForPdf } from './pdfHidrusHelpers';
 
 export interface CondominoPdfRow {
   condominioNome: string;
@@ -37,48 +38,84 @@ export function formatUnidadeLegado(agrupamentoNome: string, numeroUnidade: stri
   return `${a}-${n}`;
 }
 
+function resolveCondominioCabecalho(rows: CondominoPdfRow[], filtro?: string): string {
+  const nomes = rows.map((r) => (r.condominioNome ?? '').trim()).filter(Boolean);
+  if (nomes.length === 0) return filtro?.trim() || '—';
+  const primeiro = nomes[0];
+  const todosIguais = nomes.every((n) => n === primeiro);
+  if (todosIguais) return primeiro;
+  return filtro?.trim() || 'Vários condomínios';
+}
+
 /**
- * PDF com os dados de condôminos (cadastro de unidades), respeitando o filtro atual da tela.
- * @returns true se gerou o arquivo
+ * PDF em A4 retrato: logo, nome do condomínio, título «Condôminos», tabela com numeração de páginas.
  */
-export function exportCondominosPdf(
+export async function exportCondominosPdf(
   rows: CondominoPdfRow[],
   options: { tituloFiltro?: string } = {}
-): boolean {
+): Promise<boolean> {
   if (rows.length === 0) return false;
 
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const filtro = options.tituloFiltro?.trim();
-  const titulo = filtro ? `Condôminos — ${filtro}` : 'Condôminos — todos os agrupamentos';
+  const pageW = doc.internal.pageSize.getWidth();
+  const m = 12;
+  const condoCab = resolveCondominioCabecalho(rows, filtro);
 
-  doc.setFontSize(14);
-  doc.text(titulo, 14, 14);
-  doc.setFontSize(9);
-  doc.setTextColor(80, 80, 80);
-  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20);
+  const logo = await loadHydrusLogoForPdf(42);
+  let y = m;
+  if (logo) {
+    doc.addImage(logo.dataUrl, 'PNG', m, y, logo.w, logo.h);
+    y += logo.h + 8;
+  } else {
+    y += 4;
+  }
+
   doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  const condoLines = doc.splitTextToSize(condoCab, pageW - 2 * m);
+  doc.text(condoLines, m, y);
+  y += condoLines.length * 6 + 6;
 
-  const head = [['Condomínio', 'Unidade', 'Condômino', 'CPF', 'E-mail', 'Telefone', 'Endereço', 'Hidrômetro']];
+  doc.setFontSize(15);
+  doc.text('Condôminos', pageW / 2, y, { align: 'center' });
+  y += 10;
 
-  const body = rows.map((r) => [
-    r.condominioNome || '—',
+  doc.setFont('helvetica', 'normal');
+
+  const head = [['Ordem', 'Unidade', 'Condômino', 'CPF', 'E-mail', 'Telefone', 'Hidrômetro']];
+
+  const body = rows.map((r, i) => [
+    String(i + 1),
     formatUnidadeLegado(r.agrupamentoNome, r.unidade),
     r.condomino || '—',
     r.cpf || '—',
     r.email || '—',
     r.telefone || '—',
-    r.endereco || '—',
     r.hidrometro || '—',
   ]);
 
+  /* Colunas mais estreitas em Unidade / Hidrômetro e fonte menor para dar largura ao nome do condômino. */
   autoTable(doc, {
-    startY: 24,
+    startY: y,
     head,
     body,
-    styles: { fontSize: 7, cellPadding: 1.2, overflow: 'linebreak' },
-    headStyles: { fillColor: [30, 64, 120] },
-    margin: { left: 10, right: 10 },
+    styles: { fontSize: 6, cellPadding: 0.9, overflow: 'linebreak', valign: 'middle' },
+    headStyles: { fillColor: [30, 64, 120], fontSize: 7 },
+    margin: { left: m, right: m, bottom: 14 },
+    columnStyles: {
+      0: { cellWidth: 9, halign: 'center' },
+      1: { cellWidth: 17 },
+      2: { cellWidth: 65 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 34 },
+      5: { cellWidth: 21 },
+      6: { cellWidth: 16 },
+    },
   });
+
+  addFooterPageNumbers(doc);
 
   const prefix = filtro ? slugifyFilename(filtro) : 'todos';
   doc.save(`condominos-${prefix}-${fileDateStamp()}.pdf`);

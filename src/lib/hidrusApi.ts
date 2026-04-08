@@ -234,12 +234,16 @@ export function mapMensuration(raw: unknown) {
   const dataVal = m.Data ?? m.data;
   return {
     id: Number(m.Id ?? m.id ?? 0),
+    idUnidade: Number(u?.Id ?? m.IdUnidade ?? 0),
+    idTabelaImposto: Number(m.IdTabelaImposto ?? m.idTabelaImposto ?? 0),
     data: typeof dataVal === 'string' ? dataVal : (dataVal as Date)?.toISOString?.() ?? '',
     valor: Number(m.Valor ?? m.valor ?? 0),
+    observacao: String(m.Observacao ?? m.observacao ?? ''),
     unidade: String(u?.Nome ?? u?.unidade ?? ''),
     agrupamento: String(g?.Nome ?? ''),
     condominio: String(condo?.Nome ?? ''),
-    imagemUrl: m.Imagem != null ? String(m.Imagem) : undefined,
+    hidrometro: String(u?.Hidrometro ?? u?.hidrometro ?? ''),
+    imagemUrl: m.Imagem != null && String(m.Imagem) !== '' ? String(m.Imagem) : undefined,
   };
 }
 

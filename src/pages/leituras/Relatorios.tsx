@@ -7,17 +7,21 @@ import { hasRole } from '../../lib/auth';
 import {
   exportRelatorioGeralExcel,
   exportRelatorioGeralPdf,
-  exportRelatorioInformativoExcel,
   exportRelatorioInformativoPdf,
   formatConsumoRelatorioGeralM3,
+  formatRelatorioGeralTarifaOuExcedente,
   parseGeneralReportApi,
+  relatorioGeralColunaValorExcedente,
   type GeneralReportRow,
   type RelatorioGeralResumoExport,
   type RelatorioInformativoResumoExport,
 } from '../../lib/exportRelatorioGeral';
 import DemonstrativoConta, { type UnitBill } from '../../components/conta/DemonstrativoConta';
+import DemonstrativoEnvelopeVerso from '../../components/conta/DemonstrativoEnvelopeVerso';
 import { logoHydrusHorizontalAbsoluteUrl } from '../../lib/branding';
+import { printMinimizingBrowserDecorations } from '../../lib/printMinimal';
 import { mapCondominio, mapTabelaImposto, mapUnidade, normalizeApiList } from '../../lib/hidrusApi';
+import { isoDateToDdMmYyyy } from '../../lib/formatDateBr';
 
 type ReportType = 'geral' | 'informativo' | 'demonstrativo';
 
@@ -196,22 +200,11 @@ function briefPayloadToForm(data: unknown): ResumoGeralFormState {
 }
 
 function formatCicloConsumoLabel(inicio: unknown, fim: unknown): string {
-  const toBr = (v: unknown): string | null => {
-    if (v == null) return null;
-    const s = String(v).trim();
-    const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-    if (iso) {
-      const [, y, m, d] = iso;
-      return `${d}/${m}/${y}`;
-    }
-    const t = Date.parse(s);
-    if (Number.isNaN(t)) return null;
-    return new Date(t).toLocaleDateString('pt-BR');
-  };
-  const a = toBr(inicio);
-  const b = toBr(fim);
-  if (a && b) return `De ${a} até ${b}`;
-  return `${String(inicio ?? '').slice(0, 10)} → ${String(fim ?? '').slice(0, 10)}`;
+  const a = isoDateToDdMmYyyy(String(inicio ?? ''));
+  const b = isoDateToDdMmYyyy(String(fim ?? ''));
+  if (a !== '—' && b !== '—') return `De ${a} até ${b}`;
+  if (a !== '—' || b !== '—') return `${a} → ${b}`;
+  return '—';
 }
 
 export default function Relatorios() {
@@ -360,6 +353,17 @@ export default function Relatorios() {
 
   const dataRefDemonstrativo = consumoSelecionado?.dataFim ?? '';
 
+  const dataRefDemonstrativoBr = useMemo(() => {
+    const s = dataRefDemonstrativo.trim();
+    if (!s) return '';
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+    if (ymd) {
+      const [, y, mo, d] = ymd;
+      return `${d}/${mo}/${y}`;
+    }
+    return s;
+  }, [dataRefDemonstrativo]);
+
   const anoMesDemonstrativo = useMemo(() => {
     const s = dataRefDemonstrativo;
     if (!s) return { y: new Date().getFullYear(), m: new Date().getMonth() + 1 };
@@ -417,6 +421,7 @@ export default function Relatorios() {
       dataCaesb: resumoGeral.dataCaesb.trim() || undefined,
       totalConsumo: Number.parseInt(resumoGeral.totalConsumoStr, 10) || 0,
       totalCaesb: parseBrlMonetaryForm(resumoGeral.totalCaesbStr),
+      conferenciaCaesb: resumoGeral.totalCaesbStr.trim() !== '',
       leituraAnteriorCondominio: Number.parseInt(resumoGeral.leituraAntCondStr, 10) || 0,
       leituraAtualCondominio: Number.parseInt(resumoGeral.leituraAtualCondStr, 10) || 0,
       lixeiras,
@@ -462,6 +467,15 @@ export default function Relatorios() {
   }, [type, informativeRows.length, resumoInformativo]);
 
   const tabelaPreviewRows: GeneralReportRow[] = type === 'geral' ? generalRows : [];
+
+  const relatorioGeralTarifaMode = useMemo(() => {
+    if (type !== 'geral' || generalRows.length === 0) return null;
+    const useValorExcedente = relatorioGeralColunaValorExcedente(generalRows[0]?.dataFinal ?? '');
+    return {
+      useValorExcedente,
+      header: useValorExcedente ? 'Valor excedente' : 'Tarifa fixa',
+    };
+  }, [type, generalRows]);
 
   const handleGenerate = async () => {
     if (!condominioId) {
@@ -539,7 +553,7 @@ export default function Relatorios() {
             }
           }
         }
-        toast.success('Relatório gerado. Exporte em PDF ou Excel.');
+        toast.success('Relatório gerado. Exporte em PDF.');
       } else if (type === 'demonstrativo') {
         const c = consumoSelecionado!;
         const ids = unidadesDemonstrativoFiltradas
@@ -567,7 +581,9 @@ export default function Relatorios() {
           toast.error(`${falhas} unidade(s) não puderam ser geradas (sem leitura no período ou erro).`);
         }
         if (bills.length > 0) {
-          toast.success(`${bills.length} demonstrativo(s) gerado(s). Use Imprimir para todos.`);
+          toast.success(
+            `${bills.length} demonstrativo(s) gerado(s). Cada unidade: 1ª página envelope, 2ª página demonstrativo. Use Imprimir.`
+          );
         } else if (falhas === 0) {
           toast.error('Nenhum demonstrativo retornado.');
         }
@@ -589,12 +605,13 @@ export default function Relatorios() {
     else toast.error('Não há linhas para exportar.');
   };
 
-  const handleExportExcelGeral = () => {
+  const handleExportExcelGeral = async () => {
     if (generalRows.length === 0) {
       toast.error('Gere o relatório geral antes de exportar.');
       return;
     }
-    if (exportRelatorioGeralExcel(generalRows, resumoGeralExport)) toast.success('Planilha baixada.');
+    const ok = await exportRelatorioGeralExcel(generalRows, resumoGeralExport);
+    if (ok) toast.success('Planilha baixada.');
     else toast.error('Não há linhas para exportar.');
   };
 
@@ -730,20 +747,6 @@ export default function Relatorios() {
       resumoInformativoExport
     );
     if (ok) toast.success('PDF baixado.');
-    else toast.error('Não há linhas para exportar.');
-  };
-
-  const handleExportExcelInformativo = () => {
-    if (informativeRows.length === 0) {
-      toast.error('Gere o relatório informativo antes de exportar.');
-      return;
-    }
-    if (Number.isNaN(consumoMinimoNum)) {
-      toast.error('Consumo mínimo inválido.');
-      return;
-    }
-    if (exportRelatorioInformativoExcel(informativeRows, consumoMinimoNum, resumoInformativoExport))
-      toast.success('Planilha baixada.');
     else toast.error('Não há linhas para exportar.');
   };
 
@@ -888,20 +891,16 @@ export default function Relatorios() {
                 </>
               )}
               {type === 'informativo' && informativeRows.length > 0 && (
-                <>
-                  <button type="button" onClick={handleExportPdfInformativo} className="btn-secondary px-3 whitespace-nowrap">
-                    PDF
-                  </button>
-                  <button type="button" onClick={handleExportExcelInformativo} className="btn-secondary px-3 whitespace-nowrap">
-                    Excel
-                  </button>
-                </>
+                <button type="button" onClick={handleExportPdfInformativo} className="btn-secondary px-3 whitespace-nowrap">
+                  PDF
+                </button>
               )}
               {type === 'demonstrativo' && demoBills.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => printMinimizingBrowserDecorations()}
                   className="btn-secondary px-3 whitespace-nowrap"
+                  title='Para ocultar data, URL e número da página: no Chrome/Edge, em "Mais definições", desmarque Cabeçalhos e rodapés.'
                 >
                   Imprimir
                 </button>
@@ -930,9 +929,9 @@ export default function Relatorios() {
                   ))}
                 </select>
               </div>
-              {consumoId && dataRefDemonstrativo && (
+              {consumoId && dataRefDemonstrativoBr && (
                 <p className="text-xs text-gray-500 pb-2">
-                  Referência da conta: <span className="font-medium text-gray-700">{dataRefDemonstrativo}</span> (fim do
+                  Referência da conta: <span className="font-medium text-gray-700">{dataRefDemonstrativoBr}</span> (fim do
                   ciclo)
                 </p>
               )}
@@ -1039,29 +1038,25 @@ export default function Relatorios() {
                   </li>
                 ))}
               </ul>
-              {informativeComConsumo.length === 0 && (
-                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta faixa.</p>
-              )}
             </section>
 
-            <section className="space-y-3 border-t border-gray-200 pt-6">
-              <h2 className="text-base font-semibold text-gray-900 m-0 leading-snug">
-                Unidades sem consumo{' '}
-                <span className="text-sm font-normal text-gray-600">
-                  (Total de <strong className="text-gray-900">{informativeSemConsumo.length}</strong> unidades)
-                </span>
-              </h2>
-              <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-2 text-sm text-gray-900 list-none p-0 m-0">
-                {informativeSemConsumo.map((r, i) => (
-                  <li key={`${r.unidade}-sem-${i}`} className="border-b border-gray-100 pb-1.5">
-                    {r.unidade}
-                  </li>
-                ))}
-              </ul>
-              {informativeSemConsumo.length === 0 && (
-                <p className="text-sm text-gray-500 m-0">Nenhuma unidade sem consumo na seleção.</p>
-              )}
-            </section>
+            {informativeSemConsumo.length > 0 && (
+              <section className="space-y-3 border-t border-gray-200 pt-6">
+                <h2 className="text-base font-semibold text-gray-900 m-0 leading-snug">
+                  Unidades sem consumo{' '}
+                  <span className="text-sm font-normal text-gray-600">
+                    (Total de <strong className="text-gray-900">{informativeSemConsumo.length}</strong> unidades)
+                  </span>
+                </h2>
+                <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-2 text-sm text-gray-900 list-none p-0 m-0">
+                  {informativeSemConsumo.map((r, i) => (
+                    <li key={`${r.unidade}-sem-${i}`} className="border-b border-gray-100 pb-1.5">
+                      {r.unidade}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <datalist id="informativo-unidades-sugestoes">
               {unidadesInformativoOpcoes.map((u) => (
@@ -1127,9 +1122,6 @@ export default function Relatorios() {
                     </li>
                   ))}
               </ul>
-              {resumoInformativo.unidadesVoltando.length === 0 && (
-                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta lista.</p>
-              )}
             </section>
 
             <section className="space-y-3 border-t border-gray-200 pt-6">
@@ -1190,9 +1182,6 @@ export default function Relatorios() {
                     </li>
                   ))}
               </ul>
-              {resumoInformativo.unidadesAguaNoRelogio.length === 0 && (
-                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta lista.</p>
-              )}
             </section>
 
             <section className="space-y-3 border-t border-gray-200 pt-6">
@@ -1253,9 +1242,6 @@ export default function Relatorios() {
                     </li>
                   ))}
               </ul>
-              {resumoInformativo.unidadesVazamento.length === 0 && (
-                <p className="text-sm text-gray-500 m-0">Nenhuma unidade nesta lista.</p>
-              )}
             </section>
 
             {isAdministrador && (
@@ -1288,13 +1274,13 @@ export default function Relatorios() {
       {type === 'geral' && tabelaPreviewRows.length > 0 && (
         <div className="w-full min-w-0 space-y-4 print:overflow-visible">
           <div className="rounded-lg border border-gray-200 bg-[#d2d2d2] px-4 py-4 shadow-sm">
-            <div className="flex flex-row items-center justify-between gap-3 min-w-0">
+            <div className="flex flex-row items-start justify-between gap-3 min-w-0">
               <img
                 src={logoHydrusHorizontalAbsoluteUrl()}
                 alt="HIDRUS"
                 className="hydrus-print-logo h-10 sm:h-11 w-auto max-w-[min(46%,200px)] sm:max-w-[220px] object-contain object-left shrink-0"
               />
-              <div className="flex-1 min-w-0 text-right">
+              <div className="flex-1 min-w-0 flex flex-col items-center text-center px-2">
                 <p className="text-base font-semibold text-gray-900 leading-snug">
                   {tabelaPreviewRows[0]?.nomeCondominio || 'Condomínio'}
                 </p>
@@ -1313,12 +1299,23 @@ export default function Relatorios() {
             <table className="min-w-full text-sm text-left">
               <thead className="bg-slate-800 text-white">
                 <tr>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-center w-14">Ordem</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap">Unidade</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Leit. ant.</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Leit. atual</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Consumo (m³)</th>
-                  <th className="px-3 py-2 font-medium whitespace-nowrap text-right">Valor a pagar</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center w-14">Ordem</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap">Unidade</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
+                    Leitura anterior
+                  </th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
+                    Leitura atual
+                  </th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
+                    Consumo (m³)
+                  </th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
+                    {relatorioGeralTarifaMode?.header ?? 'Tarifa fixa'}
+                  </th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
+                    Valor a pagar
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
@@ -1326,24 +1323,40 @@ export default function Relatorios() {
                   <tr key={`${r.unidade}-${i}`} className="hover:bg-slate-50">
                     <td className="px-3 py-2 text-center tabular-nums text-gray-700">{i + 1}</td>
                     <td className="px-3 py-2 text-gray-900">{r.unidade}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{r.leituraAnterior}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{r.leituraAtual}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    <td className="px-3 py-2 text-center tabular-nums">{r.leituraAnterior}</td>
+                    <td className="px-3 py-2 text-center tabular-nums">{r.leituraAtual}</td>
+                    <td className="px-3 py-2 text-center tabular-nums">
                       {formatConsumoRelatorioGeralM3(r.consumo)}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-900">{fmtBrl(r.valorPagar)}</td>
+                    <td className="px-3 py-2 text-center tabular-nums">
+                      {relatorioGeralTarifaMode
+                        ? formatRelatorioGeralTarifaOuExcedente(
+                            r,
+                            tabelaPreviewRows,
+                            relatorioGeralTarifaMode.useValorExcedente
+                          )
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-center tabular-nums font-medium text-slate-900">
+                      {fmtBrl(r.valorPagar)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot className="bg-slate-100 font-medium text-slate-900">
                 <tr>
-                  <td className="px-3 py-2" colSpan={4}>
+                  <td className="px-3 py-2 text-right" colSpan={4}>
                     Totais
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2 text-center tabular-nums">
                     {formatConsumoRelatorioGeralM3(tabelaPreviewRows.reduce((a, r) => a + r.consumo, 0))}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2 text-center tabular-nums">
+                    {relatorioGeralTarifaMode?.useValorExcedente
+                      ? fmtBrl(tabelaPreviewRows.reduce((a, r) => a + r.valorExcedente, 0))
+                      : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-center tabular-nums">
                     {fmtBrl(tabelaPreviewRows.reduce((a, r) => a + r.valorPagar, 0))}
                   </td>
                 </tr>
@@ -1399,6 +1412,86 @@ export default function Relatorios() {
                 </div>
 
                 <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-800 m-0">Lixeiras</h3>
+                  <div className="flex flex-wrap gap-3 items-end">
+                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
+                      <label className="text-xs font-medium text-gray-600">Bloco (agrupamento)</label>
+                      <input
+                        type="text"
+                        className={inputBarClass}
+                        placeholder="Bloco"
+                        value={draftLixeira.agrupamento}
+                        onChange={(e) => setDraftLixeira((d) => ({ ...d, agrupamento: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-[7rem] w-[7.5rem]">
+                      <label className="text-xs font-medium text-gray-600">Leitura anterior</label>
+                      <input
+                        type="number"
+                        className={inputBarClass}
+                        value={draftLixeira.leituraAnterior}
+                        onChange={(e) => setDraftLixeira((d) => ({ ...d, leituraAnterior: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-[7rem] w-[7.5rem]">
+                      <label className="text-xs font-medium text-gray-600">Leitura atual</label>
+                      <input
+                        type="number"
+                        className={inputBarClass}
+                        value={draftLixeira.leituraAtual}
+                        onChange={(e) => setDraftLixeira((d) => ({ ...d, leituraAtual: e.target.value }))}
+                      />
+                    </div>
+                    <button type="button" className="btn-secondary px-4 h-10 shrink-0" onClick={addLixeiraRow}>
+                      Adicionar lixeira
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                    {resumoGeral.lixeiras.length === 0 ? (
+                      <p className="text-xs text-gray-500 px-3 py-3 m-0">Nenhuma lixeira neste resumo.</p>
+                    ) : (
+                      <table className="min-w-full text-sm text-left">
+                        <thead className="bg-slate-800 text-white">
+                          <tr>
+                            <th className="px-3 py-2 font-medium text-center">Bloco</th>
+                            <th className="px-3 py-2 font-medium text-center">Leitura anterior</th>
+                            <th className="px-3 py-2 font-medium text-center">Leitura atual</th>
+                            <th className="px-3 py-2 font-medium text-center">Consumo</th>
+                            <th className="px-3 py-2 font-medium text-center w-24">Remover?</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {[...resumoGeral.lixeiras]
+                            .sort((a, b) =>
+                              a.agrupamento.localeCompare(b.agrupamento, 'pt-BR', { sensitivity: 'base' })
+                            )
+                            .map((lix) => (
+                              <tr key={lix.id} className="hover:bg-slate-50">
+                                <td className="px-3 py-2 text-center text-gray-900">{lix.agrupamento}</td>
+                                <td className="px-3 py-2 text-center tabular-nums">{lix.leituraAnterior}</td>
+                                <td className="px-3 py-2 text-center tabular-nums">{lix.leituraAtual}</td>
+                                <td className="px-3 py-2 text-center tabular-nums">
+                                  {lix.leituraAtual - lix.leituraAnterior}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <button
+                                    type="button"
+                                    className="text-red-600 hover:text-red-800 text-xs font-medium"
+                                    onClick={() => removeLixeiraRow(lix.id)}
+                                  >
+                                    Remover
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <h3 className="text-sm font-semibold text-gray-800 m-0">Hidrômetro geral</h3>
                   <div className="flex flex-wrap gap-3">
                     <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
@@ -1419,86 +1512,6 @@ export default function Relatorios() {
                         onChange={(e) => setResumoGeral((p) => ({ ...p, leituraAtualCondStr: e.target.value }))}
                       />
                     </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-gray-800 m-0">Lixeiras</h3>
-                  <div className="flex flex-wrap gap-3 items-end">
-                    <div className="flex flex-col gap-1 min-w-[8rem] flex-1 basis-[10rem]">
-                      <label className="text-xs font-medium text-gray-600">Bloco (agrupamento)</label>
-                      <input
-                        type="text"
-                        className={inputBarClass}
-                        placeholder="Bloco"
-                        value={draftLixeira.agrupamento}
-                        onChange={(e) => setDraftLixeira((d) => ({ ...d, agrupamento: e.target.value }))}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1 min-w-[7rem] w-[7.5rem]">
-                      <label className="text-xs font-medium text-gray-600">Leit. ant.</label>
-                      <input
-                        type="number"
-                        className={inputBarClass}
-                        value={draftLixeira.leituraAnterior}
-                        onChange={(e) => setDraftLixeira((d) => ({ ...d, leituraAnterior: e.target.value }))}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1 min-w-[7rem] w-[7.5rem]">
-                      <label className="text-xs font-medium text-gray-600">Leit. atual</label>
-                      <input
-                        type="number"
-                        className={inputBarClass}
-                        value={draftLixeira.leituraAtual}
-                        onChange={(e) => setDraftLixeira((d) => ({ ...d, leituraAtual: e.target.value }))}
-                      />
-                    </div>
-                    <button type="button" className="btn-secondary px-4 h-10 shrink-0" onClick={addLixeiraRow}>
-                      Adicionar lixeira
-                    </button>
-                  </div>
-
-                  <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                    {resumoGeral.lixeiras.length === 0 ? (
-                      <p className="text-xs text-gray-500 px-3 py-3 m-0">Nenhuma lixeira neste resumo.</p>
-                    ) : (
-                      <table className="min-w-full text-sm text-left">
-                        <thead className="bg-slate-800 text-white">
-                          <tr>
-                            <th className="px-3 py-2 font-medium">Bloco</th>
-                            <th className="px-3 py-2 font-medium text-right">Leitura anterior</th>
-                            <th className="px-3 py-2 font-medium text-right">Leitura atual</th>
-                            <th className="px-3 py-2 font-medium text-right">Consumo</th>
-                            <th className="px-3 py-2 font-medium text-center w-24">Remover?</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {[...resumoGeral.lixeiras]
-                            .sort((a, b) =>
-                              a.agrupamento.localeCompare(b.agrupamento, 'pt-BR', { sensitivity: 'base' })
-                            )
-                            .map((lix) => (
-                              <tr key={lix.id} className="hover:bg-slate-50">
-                                <td className="px-3 py-2 text-gray-900">{lix.agrupamento}</td>
-                                <td className="px-3 py-2 text-right tabular-nums">{lix.leituraAnterior}</td>
-                                <td className="px-3 py-2 text-right tabular-nums">{lix.leituraAtual}</td>
-                                <td className="px-3 py-2 text-right tabular-nums">
-                                  {lix.leituraAtual - lix.leituraAnterior}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  <button
-                                    type="button"
-                                    className="text-red-600 hover:text-red-800 text-xs font-medium"
-                                    onClick={() => removeLixeiraRow(lix.id)}
-                                  >
-                                    Remover
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    )}
                   </div>
                 </div>
 
@@ -1526,13 +1539,16 @@ export default function Relatorios() {
       {type === 'demonstrativo' && demoBills.length > 0 && (
         <div className="w-full min-w-0 space-y-8 print:space-y-0">
           {demoBills.map((bill, i) => (
-            <div key={`${bill.IdUnidade ?? 'u'}-${i}`} className="demonstrativo-bill-break">
-              <DemonstrativoConta
-                bill={bill}
-                anoRef={anoMesDemonstrativo.y}
-                mesRef={anoMesDemonstrativo.m}
-                showPrintButton={false}
-              />
+            <div key={`${bill.IdUnidade ?? 'u'}-${i}`} className="demonstrativo-bill-pack">
+              <DemonstrativoEnvelopeVerso bill={bill} />
+              <div className="demonstrativo-bill-front">
+                <DemonstrativoConta
+                  bill={bill}
+                  anoRef={anoMesDemonstrativo.y}
+                  mesRef={anoMesDemonstrativo.m}
+                  showPrintButton={false}
+                />
+              </div>
             </div>
           ))}
         </div>

@@ -96,8 +96,13 @@ function emptyResumoInformativo(): ResumoInformativoFormState {
 }
 
 function parseStringListBriefField(v: unknown): string[] {
-  if (!Array.isArray(v)) return [];
-  return v.map((x) => String(x).trim()).filter((s) => s.length > 0);
+  const src = Array.isArray(v) ? v : v != null ? [v] : [];
+  const tokens = src
+    .flatMap((x) => String(x).split(/[\n,;]+/g))
+    .flatMap((part) => part.split(/\s+/g))
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return Array.from(new Set(tokens));
 }
 
 function informativeBriefPayloadToState(data: unknown): ResumoInformativoFormState {
@@ -1011,10 +1016,10 @@ export default function Relatorios() {
                 className="hydrus-print-logo h-10 sm:h-11 w-auto max-w-[min(46%,200px)] sm:max-w-[220px] object-contain object-left shrink-0"
               />
               <div className="flex-1 min-w-0 text-right">
+                <p className="text-base font-semibold text-gray-900 leading-snug">Relatório informativo</p>
                 <p className="text-base font-semibold text-gray-900 leading-snug">
                   {informativeRows[0]?.nomeCondominio}
                 </p>
-                <p className="text-base font-semibold text-gray-900 leading-snug">Relatório informativo</p>
                 <p className="text-sm font-medium text-gray-800 leading-snug">
                   Leitura de {informativeRows[0]?.dataInicial} a {informativeRows[0]?.dataFinal}
                 </p>
@@ -1032,7 +1037,10 @@ export default function Relatorios() {
               </h2>
               <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-2 text-sm text-gray-900 list-none p-0 m-0">
                 {informativeComConsumo.map((r, i) => (
-                  <li key={`${r.unidade}-${i}`} className="border-b border-gray-100 pb-2 sm:border-0 sm:pb-0">
+                  <li
+                    key={`${r.unidade}-${i}`}
+                    className="border-b border-gray-100 pb-2 sm:border-0 sm:pb-0 text-center"
+                  >
                     <span className="font-medium">{r.unidade}</span>
                     <span className="text-gray-600"> (Consumo: {fmtConsumoInformativo(r.consumo)})</span>
                   </li>

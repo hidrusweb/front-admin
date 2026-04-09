@@ -623,13 +623,13 @@ export async function exportRelatorioInformativoPdf(
   }
 
   let ly = y0 + 5;
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.text(nome, cx, ly, { align: 'center' });
-  ly += 5;
   doc.setFontSize(14);
+  doc.setTextColor(0, 0, 0);
   doc.text('Relatório informativo', cx, ly, { align: 'center' });
   ly += 6;
+  doc.setFontSize(10);
+  doc.text(nome, cx, ly, { align: 'center' });
+  ly += 5;
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
   doc.text(`Leitura de ${meta?.dataInicial ?? '—'} a ${meta?.dataFinal ?? '—'}`, cx, ly, { align: 'center' });
@@ -646,9 +646,9 @@ export async function exportRelatorioInformativoPdf(
     ? bodyInformativoComConsumoGrid(com)
     : [['', '', '', '']];
 
-  const colStylesCom: Record<number, { halign: 'left'; cellWidth: number }> = {};
+  const colStylesCom: Record<number, { halign: 'center'; cellWidth: number }> = {};
   for (let c = 0; c < INFORMATIVO_PDF_COLS; c++) {
-    colStylesCom[c] = { halign: 'left', cellWidth: 45 };
+    colStylesCom[c] = { halign: 'center', cellWidth: 45 };
   }
 
   autoTable(doc, {
@@ -660,7 +660,7 @@ export async function exportRelatorioInformativoPdf(
     ],
     body: bodyComWide,
     headStyles: INFORMATIVO_PDF_HEAD_STYLES,
-    styles: { fontSize: 7, cellPadding: 0.5, valign: 'top', halign: 'left' },
+    styles: { fontSize: 7, cellPadding: 0.5, valign: 'top', halign: 'center' },
     columnStyles: colStylesCom,
     margin: { left: m, right: m, bottom: 12 },
     theme: 'striped',

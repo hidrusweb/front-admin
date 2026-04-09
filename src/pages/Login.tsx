@@ -14,6 +14,24 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+function extractToken(data: unknown): string | null {
+  if (typeof data === 'string' && data.trim()) return data;
+  if (!data || typeof data !== 'object') return null;
+  const src = data as Record<string, unknown>;
+  const candidates = [
+    src.accessToken,
+    src.access_token,
+    src.token,
+    src.Token,
+    src.jwt,
+    src.JWT,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c;
+  }
+  return null;
+}
+
 export default function Login() {
   const navigate = useNavigate();
   const { setToken } = useAuth();
@@ -32,8 +50,11 @@ export default function Login() {
         email: data.email,
         senha: data.senha,
       });
-      const token: string =
-        res.data.accessToken ?? res.data.token ?? res.data.access_token ?? res.data;
+      const token = extractToken(res.data);
+      if (!token) {
+        toast.error('Resposta de login inválida: token ausente.');
+        return;
+      }
       setToken(token);
       navigate('/');
     } catch (err: any) {

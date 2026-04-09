@@ -10,6 +10,41 @@ export interface JwtPayload {
   iat: number;
 }
 
+const TOKEN_STORAGE_KEY = 'user_token';
+const LEGACY_TOKEN_KEYS = ['token', 'access_token', 'accessToken'] as const;
+
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_STORAGE_KEY, token);
+}
+
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+  for (const key of LEGACY_TOKEN_KEYS) {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  }
+}
+
+export function getToken(): string | null {
+  const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (stored) return stored;
+
+  const legacy = LEGACY_TOKEN_KEYS.map((k) => localStorage.getItem(k)).find((v) => !!v);
+  if (legacy) {
+    localStorage.setItem(TOKEN_STORAGE_KEY, legacy);
+    return legacy;
+  }
+
+  const fromSession = [TOKEN_STORAGE_KEY, ...LEGACY_TOKEN_KEYS]
+    .map((k) => sessionStorage.getItem(k))
+    .find((v) => !!v);
+  if (fromSession) {
+    localStorage.setItem(TOKEN_STORAGE_KEY, fromSession);
+    return fromSession;
+  }
+  return null;
+}
+
 /** Nome para exibição a partir das claims do JWT (Nome/Sobrenome, e-mail ou login). */
 export function getUserDisplayName(u: JwtPayload | null | undefined): string {
   if (!u) return 'Usuário';
@@ -40,12 +75,12 @@ export function parseJwt(token: string): JwtPayload | null {
 }
 
 export function getUser(): JwtPayload | null {
-  const token = localStorage.getItem('user_token');
+  const token = getToken();
   if (!token) return null;
   const payload = parseJwt(token);
   if (!payload) return null;
   if (Date.now() / 1000 > payload.exp) {
-    localStorage.removeItem('user_token');
+    clearToken();
     return null;
   }
   return payload;
@@ -63,5 +98,5 @@ export function hasRole(...roles: string[]): boolean {
 }
 
 export function logout(): void {
-  localStorage.removeItem('user_token');
+  clearToken();
 }

@@ -49,9 +49,8 @@ function chunkFilesForUpload(files: File[]): File[][] {
 }
 
 function labelConsumo(c: ReturnType<typeof mapConsumo>): string {
-  const ini = isoDateToDdMmYyyy(c.inicio.slice(0, 10));
   const fim = isoDateToDdMmYyyy(c.fim.slice(0, 10));
-  return `${ini} → ${fim} · Tabela #${c.idTabelaImposto}`;
+  return `Leitura (DataFim): ${fim} · Tabela #${c.idTabelaImposto}`;
 }
 
 export default function ImportarImagensLeituras() {
@@ -168,7 +167,7 @@ export default function ImportarImagensLeituras() {
           Atualiza o campo de foto das leituras já cadastradas no ciclo escolhido. Cada arquivo deve se chamar como a
           unidade no padrão <strong>AGRUPAMENTO-UNIDADE</strong> (ex.: <code className="text-xs bg-gray-100 px-1 rounded">A-201.jpg</code>
           , <code className="text-xs bg-gray-100 px-1 rounded">BLOCO2-305.png</code>). O sistema localiza a leitura pela
-          tabela de impostos e pelas datas do consumo. Diferente do importador por CSV em Leituras → Importar.
+          <strong> DataFim</strong> do ciclo selecionado. Diferente do importador por CSV em Leituras → Importar.
         </p>
       </div>
 

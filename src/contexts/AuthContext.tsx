@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { JwtPayload, getUser, logout as doLogout } from '../lib/auth';
+import { JwtPayload, getUser, logout as doLogout, setToken as saveToken } from '../lib/auth';
 
 interface AuthContextValue {
   user: JwtPayload | null;
@@ -13,7 +13,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<JwtPayload | null>(getUser);
 
   const setToken = useCallback((token: string) => {
-    localStorage.setItem('user_token', token);
+    saveToken(token);
     setUser(getUser());
   }, []);
 

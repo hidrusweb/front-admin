@@ -48,6 +48,23 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+function maskCpf(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
+function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 export default function Unidades() {
   const qc = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
@@ -364,7 +381,16 @@ export default function Unidades() {
             </div>
             <div>
               <label className="label">CPF *</label>
-              <input className="input" placeholder="000.000.000-00" {...register('cpf')} />
+              <input
+                className="input"
+                placeholder="000.000.000-00"
+                maxLength={14}
+                {...register('cpf', {
+                  onChange: (e) => {
+                    e.target.value = maskCpf(e.target.value);
+                  },
+                })}
+              />
               {errors.cpf && <p className="text-red-500 text-xs mt-1">{errors.cpf.message}</p>}
             </div>
             <div>
@@ -374,7 +400,16 @@ export default function Unidades() {
             </div>
             <div>
               <label className="label">Telefone *</label>
-              <input className="input" placeholder="(99) 99999-9999" {...register('telefone')} />
+              <input
+                className="input"
+                placeholder="(99) 99999-9999"
+                maxLength={15}
+                {...register('telefone', {
+                  onChange: (e) => {
+                    e.target.value = maskPhone(e.target.value);
+                  },
+                })}
+              />
               {errors.telefone && <p className="text-red-500 text-xs mt-1">{errors.telefone.message}</p>}
             </div>
             <div>

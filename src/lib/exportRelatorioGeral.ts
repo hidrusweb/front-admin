@@ -114,12 +114,12 @@ function appendResumoPdf(
         ? [
             [`1. Total das ${n} unidades`, `==> ${fmt(totalAPagar)}`],
             [`2. Conta CAESB`, `==> ${fmt(totalCaesb)}`],
-            [`3. Diferença`, `==> ${fmt(totalAPagar - totalCaesb)}`],
+            [`3. Diferença`, `==> ${fmt(totalAPagar - totalCaesb)} (crédito)`],
           ]
         : [
             [`1. Conta CAESB`, `==> ${fmt(totalCaesb)}`],
             [`2. Total das ${n} unidades`, `==> ${fmt(totalAPagar)}`],
-            [`3. Diferença`, `==> ${fmt(totalCaesb - totalAPagar)}`],
+            [`3. Diferença`, `==> ${fmt(totalCaesb - totalAPagar)} (déficit)`],
           ];
 
     autoTable(doc, {

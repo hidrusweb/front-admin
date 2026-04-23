@@ -106,8 +106,8 @@ function ReadingImageSlot({ src, maxHeightClass }: { src: string | null; maxHeig
         </div>
       ) : (
         <div className="w-full max-w-[520px] aspect-video rounded-xl bg-slate-100 flex flex-col items-center justify-center gap-1 px-3 text-center print:h-16 print:gap-0 print:px-2">
-          <p className="text-sm font-medium text-slate-600 print:text-[10px]">Sem imagem</p>
-          <p className="text-xs text-slate-500 leading-snug print:text-[9px] print:leading-tight">
+          <p className="text-sm font-medium text-slate-600 print:text-xs">Sem imagem</p>
+          <p className="text-xs text-slate-500 leading-snug print:text-[11px] print:leading-snug">
             Não há foto cadastrada ou a imagem não pôde ser carregada.
           </p>
         </div>
@@ -182,8 +182,8 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
             />
           </div>
           <div className="text-right">
-            <p className="text-xs font-medium uppercase tracking-wider text-cyan-600">Demonstrativo</p>
-            <p className="text-lg font-semibold text-slate-900 tabular-nums">
+            <p className="text-xs font-medium uppercase tracking-wider text-cyan-600 print:text-sm">Demonstrativo</p>
+            <p className="text-lg font-semibold text-slate-900 tabular-nums print:text-xl">
               {mesCurto(mesRef)} / {anoRef}
             </p>
           </div>
@@ -193,8 +193,8 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
           <div className="bg-gradient-to-br from-slate-50 via-white to-slate-50/30 px-5 py-4 border-b border-slate-100 print-a4-tight">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-slate-900 leading-tight">{condoNome || '—'}</h2>
-                <p className="text-sm font-medium text-slate-800 leading-tight mt-0.5">
+                <h2 className="text-lg font-semibold text-slate-900 leading-tight print:text-xl">{condoNome || '—'}</h2>
+                <p className="text-base font-medium text-slate-800 leading-tight mt-0.5 print:text-lg">
                   {(bill.NomeCondomino ?? '—').replace(/"/g, '')}
                 </p>
               </div>
@@ -207,28 +207,28 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
           {caesb ? (
             <div className="p-5 grid md:grid-cols-2 gap-6 print:grid-cols-2 print:gap-3 print:p-3 print-a4-tight">
               <div className="space-y-4 print:space-y-2">
-                <h3 className="text-sm font-semibold text-slate-800">
+                <h3 className="text-base font-semibold text-slate-800 print:text-lg">
                   Demonstrativo · {mesCurto(mesRef)} / {anoRef}
                 </h3>
                 <div className="rounded-xl bg-slate-50 px-4 py-3 text-center ring-1 ring-slate-100">
-                  <p className="text-xs text-slate-500">Consumo</p>
-                  <p className="text-xl font-semibold text-slate-900 tabular-nums print:text-base">{consumo} m³</p>
+                  <p className="text-sm text-slate-500 print:text-base">Consumo</p>
+                  <p className="text-xl font-semibold text-slate-900 tabular-nums print:text-xl">{consumo} m³</p>
                 </div>
-                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Leituras</p>
-                <div className="grid grid-cols-3 gap-2 text-center text-[11px] print:text-[9px]">
+                <p className="text-sm font-semibold text-slate-600 uppercase tracking-wide print:text-base">Leituras</p>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs print:text-xs">
                   <div className="rounded-lg bg-slate-50 py-2 px-1 ring-1 ring-slate-100">
                     <div className="text-slate-500 leading-tight">Anterior</div>
-                    <div className="text-[10px] text-slate-400">{fmtDay(bill.DataLeituraAnterior)}</div>
+                    <div className="text-xs text-slate-400">{fmtDay(bill.DataLeituraAnterior)}</div>
                     <div className="mt-1 font-semibold text-slate-900 tabular-nums">{bill.LeituraAnterior}</div>
                   </div>
                   <div className="rounded-lg bg-cyan-50/80 py-2 px-1 ring-1 ring-cyan-100/80">
                     <div className="text-cyan-800 leading-tight">Atual</div>
-                    <div className="text-[10px] text-cyan-700/80">{fmtDay(dataLeitura)}</div>
+                    <div className="text-xs text-cyan-700/80">{fmtDay(dataLeitura)}</div>
                     <div className="mt-1 font-semibold text-slate-900 tabular-nums">{bill.LeituraAtual}</div>
                   </div>
                   <div className="rounded-lg bg-slate-50 py-2 px-1 ring-1 ring-slate-100">
                     <div className="text-slate-500 leading-tight">Próxima leitura</div>
-                    <div className="text-[10px] text-slate-400" aria-hidden>
+                    <div className="text-xs text-slate-400" aria-hidden>
                       {'\u00a0'}
                     </div>
                     <div className="mt-1 font-semibold text-slate-900 tabular-nums">
@@ -242,30 +242,30 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
           ) : (
             <div className="p-5 grid md:grid-cols-2 gap-6 print:grid-cols-2 print:gap-3 print:p-3 print-a4-tight">
               <div className="space-y-4 print:space-y-2">
-                <h3 className="text-sm font-semibold text-slate-800">
+                <h3 className="text-base font-semibold text-slate-800 print:text-lg">
                   Demonstrativo · {mesCurto(mesRef)} / {anoRef}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-xl bg-slate-50 p-3 text-center ring-1 ring-slate-100">
-                    <p className="text-xs text-slate-500">Consumo</p>
-                    <p className="font-semibold text-slate-900 tabular-nums print:text-sm">{consumo} m³</p>
+                    <p className="text-sm text-slate-500 print:text-base">Consumo</p>
+                    <p className="font-semibold text-slate-900 tabular-nums print:text-lg">{consumo} m³</p>
                   </div>
                   <div className="rounded-xl bg-slate-50 p-3 text-center ring-1 ring-slate-100">
-                    <p className="text-xs text-slate-500">Excedente a 10 m³</p>
-                    <p className="font-semibold text-slate-900 tabular-nums print:text-sm">{excedenteM3} m³</p>
+                    <p className="text-sm text-slate-500 print:text-base">Excedente a 10 m³</p>
+                    <p className="font-semibold text-slate-900 tabular-nums print:text-lg">{excedenteM3} m³</p>
                   </div>
                   <div className="rounded-xl bg-slate-50 p-3 text-center ring-1 ring-slate-100">
-                    <p className="text-xs text-slate-500">Taxa mínima</p>
-                    <p className="font-semibold text-slate-900 print:text-xs">{brl(taxaMin)}</p>
+                    <p className="text-sm text-slate-500 print:text-base">Taxa mínima</p>
+                    <p className="font-semibold text-slate-900 print:text-base">{brl(taxaMin)}</p>
                   </div>
                   <div className="rounded-xl bg-slate-50 p-3 text-center ring-1 ring-slate-100">
-                    <p className="text-xs text-slate-500">Valor excedente</p>
-                    <p className="font-semibold text-slate-900 print:text-xs">{brl(bill.ValorExcendente ?? 0)}</p>
+                    <p className="text-sm text-slate-500 print:text-base">Valor excedente</p>
+                    <p className="font-semibold text-slate-900 print:text-base">{brl(bill.ValorExcendente ?? 0)}</p>
                   </div>
                 </div>
                 <div className="rounded-xl bg-gradient-to-r from-cyan-600 to-slate-800 p-4 text-center text-white shadow-sm">
-                  <p className="text-xs text-white/80">Total a pagar</p>
-                  <p className="text-xl font-bold tabular-nums print:text-base">{brl(bill.ValorPagar)}</p>
+                  <p className="text-sm text-white/80 print:text-base">Total a pagar</p>
+                  <p className="text-xl font-bold tabular-nums print:text-xl">{brl(bill.ValorPagar)}</p>
                 </div>
               </div>
               <ReadingImageSlot src={img} maxHeightClass="max-h-[360px]" />
@@ -274,70 +274,70 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
         </div>
 
         <section className="mt-6 print:mt-2 print-keep-together">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 print:mb-1">
+          <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-2 print:mb-1 print:text-base">
             {caesb ? 'Detalhamento da conta' : 'Faixas de cobrança'}
           </h4>
           <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/80 overflow-hidden print:shadow-none print-keep-together">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse print-table-compact">
+              <table className="w-full text-base border-collapse print-table-compact">
                 <thead>
                   <tr className="bg-slate-100 text-slate-700">
-                    <th className="px-3 py-2 text-left font-semibold text-xs">Faixa</th>
-                    <th className="px-2 py-2 text-center font-semibold text-xs">Mín.</th>
-                    <th className="px-2 py-2 text-center font-semibold text-xs">Máx.</th>
-                    <th className="px-2 py-2 text-center font-semibold text-xs">Enq.</th>
-                    <th className="px-2 py-2 text-center font-semibold text-xs">Água</th>
-                    <th className="px-2 py-2 text-center font-semibold text-xs">Esgoto</th>
-                    <th className="px-3 py-2 text-right font-semibold text-xs">Total</th>
+                    <th className="px-3 py-2 text-left font-semibold text-sm">Faixa</th>
+                    <th className="px-2 py-2 text-center font-semibold text-sm">Mín.</th>
+                    <th className="px-2 py-2 text-center font-semibold text-sm">Máx.</th>
+                    <th className="px-2 py-2 text-center font-semibold text-sm">Enq.</th>
+                    <th className="px-2 py-2 text-center font-semibold text-sm">Água</th>
+                    <th className="px-2 py-2 text-center font-semibold text-sm">Esgoto</th>
+                    <th className="px-3 py-2 text-right font-semibold text-sm">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {faixas.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500 text-sm">
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500 text-base">
                         Nenhuma faixa para este período.
                       </td>
                     </tr>
                   ) : (
                     faixas.map((f) => (
                       <tr key={f.OrdemFaixa} className="hover:bg-slate-50/80 print:hover:bg-transparent">
-                        <td className="px-3 py-2 text-slate-800 text-xs">
+                        <td className="px-3 py-2 text-slate-800 text-sm">
                           {(f.NomeFaixa ?? `Faixa ${f.OrdemFaixa}`).replace(/"/g, '')}
                         </td>
-                        <td className="px-2 py-2 text-center tabular-nums text-xs">{f.Minimo}</td>
-                        <td className="px-2 py-2 text-center tabular-nums text-xs">{f.Maximo}</td>
-                        <td className="px-2 py-2 text-center tabular-nums text-xs">{f.Enquadramento}</td>
-                        <td className="px-2 py-2 text-center text-xs tabular-nums">{brl(Number(f.AliquotaAgua))}</td>
-                        <td className="px-2 py-2 text-center text-xs tabular-nums">{brl(Number(f.AliquotaEsgoto))}</td>
-                        <td className="px-3 py-2 text-right font-medium text-xs tabular-nums">{brl(f.TotalFaixa)}</td>
+                        <td className="px-2 py-2 text-center tabular-nums text-sm">{f.Minimo}</td>
+                        <td className="px-2 py-2 text-center tabular-nums text-sm">{f.Maximo}</td>
+                        <td className="px-2 py-2 text-center tabular-nums text-sm">{f.Enquadramento}</td>
+                        <td className="px-2 py-2 text-center text-sm tabular-nums">{brl(Number(f.AliquotaAgua))}</td>
+                        <td className="px-2 py-2 text-center text-sm tabular-nums">{brl(Number(f.AliquotaEsgoto))}</td>
+                        <td className="px-3 py-2 text-right font-medium text-sm tabular-nums">{brl(f.TotalFaixa)}</td>
                       </tr>
                     ))
                   )}
                 </tbody>
                 <tfoot className="bg-slate-50 text-slate-800">
                   <tr>
-                    <td colSpan={6} className="px-3 py-2 text-right text-xs font-medium">
+                    <td colSpan={6} className="px-3 py-2 text-right text-sm font-medium">
                       Total faixas (variável)
                     </td>
-                    <td className="px-3 py-2 text-right text-xs font-bold tabular-nums">{brl(sumFaixas)}</td>
+                    <td className="px-3 py-2 text-right text-sm font-bold tabular-nums">{brl(sumFaixas)}</td>
                   </tr>
                   <tr>
-                    <td colSpan={6} className="px-3 py-2 text-right text-xs font-medium">
+                    <td colSpan={6} className="px-3 py-2 text-right text-sm font-medium">
                       Tarifa mínima
                     </td>
-                    <td className="px-3 py-2 text-right text-xs font-bold tabular-nums">{brl(taxaMin)}</td>
+                    <td className="px-3 py-2 text-right text-sm font-bold tabular-nums">{brl(taxaMin)}</td>
                   </tr>
                   <tr>
-                    <td colSpan={6} className="px-3 py-2 text-right text-xs font-medium">
+                    <td colSpan={6} className="px-3 py-2 text-right text-sm font-medium">
                       Área comum
                     </td>
-                    <td className="px-3 py-2 text-right text-xs font-bold tabular-nums">{brl(bill.ValorAreaComum)}</td>
+                    <td className="px-3 py-2 text-right text-sm font-bold tabular-nums">{brl(bill.ValorAreaComum)}</td>
                   </tr>
                   <tr className="bg-slate-200/80">
-                    <td colSpan={6} className="px-3 py-2 text-right text-xs font-bold">
+                    <td colSpan={6} className="px-3 py-2 text-right text-sm font-bold">
                       Total a pagar
                     </td>
-                    <td className="px-3 py-2 text-right text-sm font-bold tabular-nums">{brl(bill.ValorPagar)}</td>
+                    <td className="px-3 py-2 text-right text-base font-bold tabular-nums">{brl(bill.ValorPagar)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -346,7 +346,7 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
         </section>
 
         <section className="mt-6 mb-8 print:mt-2 print:mb-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3 print:mb-1">
+          <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-3 print:mb-1 print:text-base">
             Histórico recente
           </h4>
           <div className="grid md:grid-cols-2 gap-5 print:grid-cols-2 print:gap-2">
@@ -361,7 +361,7 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
                 return (
                   <li
                     key={`${h.AnoLeitura}-${h.MesLeitura}`}
-                    className={`relative pl-2 py-1.5 text-xs print:py-0.5 ${ativo ? 'font-semibold text-cyan-700' : 'text-slate-600'}`}
+                    className={`relative pl-2 py-1.5 text-sm print:py-0.5 print:text-base ${ativo ? 'font-semibold text-cyan-700' : 'text-slate-600'}`}
                   >
                     <span
                       className={`absolute -left-[19px] top-2 w-2 h-2 rounded-full print:top-1.5 ${ativo ? 'bg-cyan-500' : 'bg-slate-300'}`}
@@ -379,9 +379,9 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
             </ul>
             <div className="min-w-0">
               <div className="flex items-baseline justify-between gap-2 mb-2 print:mb-1">
-                <p className="text-xs font-medium text-slate-700">Consumo mensal (m³)</p>
+                <p className="text-sm font-medium text-slate-700 print:text-base">Consumo mensal (m³)</p>
                 {historicoOrdenado.length > 0 && (
-                  <p className="text-[11px] text-slate-500 print:hidden text-right">
+                  <p className="text-xs text-slate-500 print:hidden text-right">
                     No período:{' '}
                     <span
                       className={`font-semibold tabular-nums ${minConsumoHist < 0 ? 'text-amber-800' : 'text-slate-700'}`}
@@ -394,7 +394,7 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
                 )}
               </div>
               {historicoOrdenado.length === 0 ? (
-                <p className="text-sm text-slate-400 py-6 text-center rounded-xl bg-slate-50 border border-slate-100">
+                <p className="text-base text-slate-400 py-6 text-center rounded-xl bg-slate-50 border border-slate-100">
                   Sem histórico para o gráfico.
                 </p>
               ) : (
@@ -402,7 +402,7 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
                   <div className="flex gap-2 p-3 pl-1 sm:pl-2 print:p-1.5 print:gap-1 print:overflow-visible">
                     <div className="flex flex-col shrink-0 w-9 sm:w-11 print:w-8" aria-hidden>
                       <div className="h-5 shrink-0 min-h-[1.25rem] print:h-4 print:min-h-4" />
-                      <div className="flex h-44 print-chart-h flex-col justify-between text-[10px] sm:text-xs text-slate-500 tabular-nums text-right pr-1 print:text-[8px]">
+                      <div className="flex h-44 print-chart-h flex-col justify-between text-xs sm:text-sm text-slate-500 tabular-nums text-right pr-1 print:text-xs">
                         {[0, 1, 2, 3, 4].map((i) => (
                           <span key={i}>{formatM3Tick(chartMax - (chartSpan * i) / 4)}</span>
                         ))}
@@ -419,7 +419,7 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
                               className="flex-1 flex justify-center min-w-0 max-w-[56px]"
                             >
                               <span
-                                className={`text-[10px] sm:text-xs font-semibold tabular-nums whitespace-nowrap print:text-[8px] ${
+                                className={`text-xs sm:text-sm font-semibold tabular-nums whitespace-nowrap print:text-xs ${
                                   v < 0
                                     ? ativo
                                       ? 'text-amber-900'
@@ -506,7 +506,7 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
                           return (
                             <div
                               key={`x-${h.AnoLeitura}-${h.MesLeitura}`}
-                              className={`flex-1 text-center min-w-0 max-w-[56px] text-[9px] sm:text-[10px] tabular-nums leading-tight print:text-[7px] ${
+                              className={`flex-1 text-center min-w-0 max-w-[56px] text-[10px] sm:text-xs tabular-nums leading-tight print:text-[10px] ${
                                 ativo ? 'font-semibold text-cyan-700' : 'text-slate-500'
                               }`}
                             >
@@ -518,7 +518,7 @@ export default function DemonstrativoConta({ bill, anoRef, mesRef, showPrintButt
                       </div>
                     </div>
                   </div>
-                  <p className="text-[10px] text-slate-400 px-3 pb-2 print:hidden print:pb-0">
+                  <p className="text-xs text-slate-400 px-3 pb-2 print:hidden print:pb-0">
                     Escala: {formatM3Tick(chartMin)} a {formatM3Tick(chartMax)} m³ (linha escura = zero).
                   </p>
                 </div>

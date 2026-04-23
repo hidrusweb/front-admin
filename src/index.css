@@ -108,8 +108,8 @@
 
   .demonstrativo-chart-plot {
     overflow: visible !important;
-    min-height: 9rem !important;
-    height: 9rem !important;
+    min-height: 10.5rem !important;
+    height: 10.5rem !important;
   }
 
   /* Cada unidade: 1ª folha envelope, 2ª demonstrativo; depois quebra para a próxima unidade. */
@@ -142,14 +142,15 @@
   }
   .demonstrativo-print-root .print-table-compact th,
   .demonstrativo-print-root .print-table-compact td {
-    padding: 0.2rem 0.35rem;
-    font-size: 8px;
+    padding: 0.3rem 0.45rem;
+    font-size: 11px;
+    line-height: 1.35;
   }
   .demonstrativo-print-root .print-photo-max {
     max-height: 5rem;
   }
   .demonstrativo-print-root .print-chart-h {
-    height: 9rem;
+    height: 10.5rem;
   }
   .demonstrativo-print-root .print-keep-together {
     break-inside: avoid;

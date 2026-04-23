@@ -20,7 +20,7 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter basename={routerBasename}>
         <AuthProvider>
           <App />
-          <Toaster position="top-right" />
+          <Toaster position="top-right" containerClassName="print:hidden" />
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

@@ -24,8 +24,8 @@ export default function DemonstrativoEnvelopeVerso({ bill }: Props) {
 
   return (
     <div className="demonstrativo-envelope-verso min-h-[85dvh] print:min-h-0 bg-slate-50 print:bg-white">
-      <div className="demonstrativo-envelope-verso-inner max-w-3xl mx-auto px-6 py-10 print:max-w-none print:px-10 print:py-12">
-        <div className="flex justify-center sm:justify-start mb-10 print:mb-12">
+      <div className="demonstrativo-envelope-verso-inner max-w-3xl mx-auto px-6 py-10 print:max-w-none print:px-10 print:py-6 print:pb-10">
+        <div className="flex justify-center sm:justify-start mb-10 print:mb-3">
           <img
             src={logoHydrusHorizontalAbsoluteUrl()}
             alt="HIDRUS"

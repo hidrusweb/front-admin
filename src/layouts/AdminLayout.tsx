@@ -240,9 +240,9 @@ export default function AdminLayout() {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors touch-manipulation py-1"
+            className="group inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors touch-manipulation py-1"
           >
-            <LogOut size={15} />
+            <LogOut className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden="true" />
             Sair
           </button>
         </div>

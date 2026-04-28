@@ -1035,11 +1035,11 @@ export default function Relatorios() {
                   (Total de <strong className="text-gray-900">{informativeComConsumo.length}</strong> unidades)
                 </span>
               </h2>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-2 text-sm text-gray-900 list-none p-0 m-0">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-4 text-sm text-gray-900 list-none p-0 m-0 leading-relaxed">
                 {informativeComConsumo.map((r, i) => (
                   <li
                     key={`${r.unidade}-${i}`}
-                    className="border-b border-gray-100 pb-2 sm:border-0 sm:pb-0 text-center"
+                    className="border-b border-gray-100 pb-3 sm:border-0 sm:pb-1 text-center"
                   >
                     <span className="font-medium">{r.unidade}</span>
                     <span className="text-gray-600"> (Consumo: {fmtConsumoInformativo(r.consumo)})</span>
@@ -1056,9 +1056,9 @@ export default function Relatorios() {
                     (Total de <strong className="text-gray-900">{informativeSemConsumo.length}</strong> unidades)
                   </span>
                 </h2>
-                <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-2 text-sm text-gray-900 list-none p-0 m-0">
+                <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-3.5 text-sm text-gray-900 list-none p-0 m-0 leading-relaxed">
                   {informativeSemConsumo.map((r, i) => (
-                    <li key={`${r.unidade}-sem-${i}`} className="border-b border-gray-100 pb-1.5">
+                    <li key={`${r.unidade}-sem-${i}`} className="border-b border-gray-100 pb-2.5">
                       {r.unidade}
                     </li>
                   ))}
@@ -1304,11 +1304,11 @@ export default function Relatorios() {
           </div>
           <div className="card space-y-3 w-full min-w-0 overflow-hidden print:overflow-visible print:shadow-none">
             <div className="max-h-[min(70vh,36rem)] overflow-auto rounded-lg border border-gray-200 print:max-h-none print:overflow-visible">
-            <table className="min-w-full text-sm text-left">
+            <table className="min-w-full text-sm">
               <thead className="bg-slate-800 text-white">
                 <tr>
                   <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center w-14">Ordem</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap">Unidade</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">Unidade</th>
                   <th className="px-3 py-2.5 text-sm font-semibold whitespace-nowrap text-center">
                     Leitura anterior
                   </th>
@@ -1373,7 +1373,7 @@ export default function Relatorios() {
             </div>
 
             {isAdministrador && (
-              <div className="rounded-lg border border-amber-200/80 bg-amber-50/40 px-4 py-4 space-y-4">
+              <div className="rounded-lg border border-amber-200/80 bg-amber-50/40 px-4 py-4 space-y-4 print:break-before-page">
                 <h2 className="text-base font-semibold text-gray-900 m-0">Resumo</h2>
                 <div className="space-y-2">
                   <h3 className="text-sm font-semibold text-gray-800 m-0">Conta CAESB</h3>

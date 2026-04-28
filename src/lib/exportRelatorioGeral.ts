@@ -56,9 +56,9 @@ function appendResumoPdf(
 ): void {
   if (!resumoExportTemConteudo(resumo)) return;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let y = ((doc as any).lastAutoTable?.finalY as number | undefined) ?? 40;
-  y += 10;
+  /** Nova página após a tabela de unidades (linha «Totais»). */
+  doc.addPage();
+  let y = 14;
   const pageH = doc.internal.pageSize.getHeight();
   const ensureSpace = (need: number) => {
     if (y + need > pageH - 14) {
@@ -440,7 +440,7 @@ async function exportRelatorioTabelaPdf(
     head: pdfHeadRelatorioGeral(colTarifaTitle),
     body,
     styles: { fontSize: 7, cellPadding: 1 },
-    headStyles: { fillColor: [30, 64, 120], fontSize: 9 },
+    headStyles: { fillColor: [30, 64, 120], fontSize: 9, halign: 'center', valign: 'middle' },
     margin: { left: 10, right: 10 },
     columnStyles: {
       0: { halign: 'center' },
@@ -452,6 +452,10 @@ async function exportRelatorioTabelaPdf(
       6: { halign: 'center' },
     },
     didParseCell: (data) => {
+      if (data.section === 'head') {
+        data.cell.styles.halign = 'center';
+        data.cell.styles.valign = 'middle';
+      }
       if (data.section === 'body' && data.row.index === body.length - 1) {
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.fillColor = [240, 244, 250];
@@ -582,7 +586,11 @@ function appendInformativoResumoPdf(doc: jsPDF, resumo: RelatorioInformativoResu
       head: [informativoPdfHeadTituloLinha(`${s.title} (Total de ${s.items.length} unidades)`)],
       body: bodyResumo,
       headStyles: INFORMATIVO_PDF_HEAD_STYLES,
-      styles: { fontSize: 7, cellPadding: 0.5, halign: 'center' },
+      styles: {
+        fontSize: 7,
+        cellPadding: { top: 1.4, bottom: 1.4, left: 0.8, right: 0.8 },
+        halign: 'center',
+      },
       margin: { left: m, right: m, bottom: 12 },
       theme: 'striped',
       columnStyles: Object.fromEntries(
@@ -660,7 +668,12 @@ export async function exportRelatorioInformativoPdf(
     ],
     body: bodyComWide,
     headStyles: INFORMATIVO_PDF_HEAD_STYLES,
-    styles: { fontSize: 7, cellPadding: 0.5, valign: 'top', halign: 'center' },
+    styles: {
+      fontSize: 7,
+      cellPadding: { top: 1.4, bottom: 1.4, left: 0.8, right: 0.8 },
+      valign: 'top',
+      halign: 'center',
+    },
     columnStyles: colStylesCom,
     margin: { left: m, right: m, bottom: 12 },
     theme: 'striped',
@@ -674,7 +687,12 @@ export async function exportRelatorioInformativoPdf(
       head: [informativoPdfHeadTituloLinha(`Unidades sem consumo (Total de ${sem.length} unidades)`)],
       body: bodyInformativoSemConsumoGrid(sem),
       headStyles: INFORMATIVO_PDF_HEAD_STYLES,
-      styles: { fontSize: 7, cellPadding: 0.5, halign: 'center', valign: 'middle' },
+      styles: {
+        fontSize: 7,
+        cellPadding: { top: 1.4, bottom: 1.4, left: 0.8, right: 0.8 },
+        halign: 'center',
+        valign: 'middle',
+      },
       margin: { left: m, right: m, bottom: 12 },
       theme: 'striped',
       columnStyles: Object.fromEntries(

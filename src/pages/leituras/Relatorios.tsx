@@ -1295,9 +1295,6 @@ export default function Relatorios() {
                 <p className="text-base font-semibold text-gray-900 leading-snug">Relatório geral</p>
                 <p className="text-sm font-medium text-gray-800 leading-snug">
                   Leitura de {tabelaPreviewRows[0]?.dataInicial} a {tabelaPreviewRows[0]?.dataFinal}
-                  {tabelaPreviewRows[0]?.dataProximaLeitura
-                    ? ` · Próx. leitura ${tabelaPreviewRows[0].dataProximaLeitura}`
-                    : ''}
                 </p>
               </div>
             </div>
@@ -1330,7 +1327,7 @@ export default function Relatorios() {
                 {tabelaPreviewRows.map((r, i) => (
                   <tr key={`${r.unidade}-${i}`} className="hover:bg-slate-50">
                     <td className="px-3 py-2 text-center tabular-nums text-gray-700">{i + 1}</td>
-                    <td className="px-3 py-2 text-gray-900">{r.unidade}</td>
+                    <td className="px-3 py-2 text-center text-gray-900">{r.unidade}</td>
                     <td className="px-3 py-2 text-center tabular-nums">{r.leituraAnterior}</td>
                     <td className="px-3 py-2 text-center tabular-nums">{r.leituraAtual}</td>
                     <td className="px-3 py-2 text-center tabular-nums">

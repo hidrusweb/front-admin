@@ -370,7 +370,6 @@ async function exportRelatorioTabelaPdf(
 
   const nome = rows[0]?.nomeCondominio || 'Condomínio';
   const periodo = `${rows[0]?.dataInicial ?? '—'} a ${rows[0]?.dataFinal ?? '—'}`;
-  const prox = rows[0]?.dataProximaLeitura ? `Próx. leitura: ${rows[0].dataProximaLeitura}` : '';
   const t = totals(rows);
   const useValorExcedente = relatorioGeralColunaValorExcedente(rows[0]?.dataFinal ?? '');
   const colTarifaTitle = useValorExcedente ? 'Valor excedente' : 'Tarifa fixa';
@@ -400,10 +399,6 @@ async function exportRelatorioTabelaPdf(
   doc.setTextColor(80, 80, 80);
   doc.text(`Período: ${periodo}`, cx, ly, { align: 'center' });
   ly += 4;
-  if (prox) {
-    doc.text(prox, cx, ly, { align: 'center' });
-    ly += 4;
-  }
   for (const line of opt.linhasExtras ?? []) {
     doc.text(line, cx, ly, { align: 'center' });
     ly += 4;
@@ -444,7 +439,7 @@ async function exportRelatorioTabelaPdf(
     margin: { left: 10, right: 10 },
     columnStyles: {
       0: { halign: 'center' },
-      1: { halign: 'left' },
+      1: { halign: 'center' },
       2: { halign: 'center' },
       3: { halign: 'center' },
       4: { halign: 'center' },

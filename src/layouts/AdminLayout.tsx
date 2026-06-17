@@ -11,7 +11,7 @@ import {
   PlusCircle,
   Upload,
   TrendingUp,
-  Percent,
+  Table,
   Wrench,
   ImagePlus,
   LogOut,
@@ -44,7 +44,7 @@ const navItems: NavItem[] = [
       { label: 'Agrupamentos', to: '/admin/agrupamentos', icon: <Layers size={16} /> },
       { label: 'Consumos', to: '/admin/consumos', icon: <BarChart2 size={16} /> },
       { label: 'Unidades', to: '/admin/unidades', icon: <Home size={16} /> },
-      { label: 'Faixa / Impostos', to: '/admin/faixa-impostos', icon: <Percent size={16} /> },
+      { label: 'Tabelas de Impostos', to: '/admin/tabelas-imposto', icon: <Table size={16} /> },
     ],
   },
   {

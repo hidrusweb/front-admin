@@ -10,6 +10,7 @@ import {
   TrendingUp,
   Layers,
   Percent,
+  Table,
   CalendarClock,
   Droplets,
   ClipboardList,
@@ -204,7 +205,7 @@ export default function Dashboard() {
     { label: 'Unidades', to: '/admin/unidades', icon: <Home size={20} />, admin: true },
     { label: 'Agrupamentos', to: '/admin/agrupamentos', icon: <Layers size={20} />, admin: true },
     { label: 'Ciclos de consumo', to: '/admin/consumos', icon: <BarChart2 size={20} />, admin: true },
-    { label: 'Tarifas / faixas', to: '/admin/faixa-impostos', icon: <Percent size={20} />, admin: true },
+    { label: 'Tabelas de impostos', to: '/admin/tabelas-imposto', icon: <Table size={20} />, admin: true },
     { label: 'Usuários', to: '/admin/usuarios', icon: <Users size={20} />, admin: true, onlyAdmin: true },
   ];
 

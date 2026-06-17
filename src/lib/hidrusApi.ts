@@ -98,11 +98,19 @@ export function mapConsumo(raw: unknown) {
 
 export function mapTabelaImposto(raw: unknown) {
   const t = raw as Record<string, unknown>;
+  const ranges = (t.tax_ranges ?? t.taxRanges) as unknown[] | undefined;
   return {
     id: Number(pickId(t)),
     nome: String(t.Nome ?? t.nome ?? ''),
     ativo: Boolean(t.Status ?? t.ativo ?? true),
+    qtdFaixas: Array.isArray(ranges) ? ranges.length : 0,
   };
+}
+
+export function payloadTabelaImpostoSave(data: { nome: string }, id?: number) {
+  const p: Record<string, unknown> = { Nome: data.nome };
+  if (id != null) p.Id = id;
+  return p;
 }
 
 export function mapFaixaImposto(raw: unknown) {

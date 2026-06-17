@@ -10,7 +10,7 @@ import Usuarios from './pages/admin/Usuarios';
 import Agrupamentos from './pages/admin/Agrupamentos';
 import Consumos from './pages/admin/Consumos';
 import Unidades from './pages/admin/Unidades';
-import FaixaImpostos from './pages/admin/FaixaImpostos';
+import TabelasImposto from './pages/admin/TabelasImposto';
 import ImportarImagensLeituras from './pages/admin/ferramentas/ImportarImagensLeituras';
 
 import LeiturasIndex from './pages/leituras/Index';
@@ -77,12 +77,16 @@ export default function App() {
           }
         />
         <Route
-          path="admin/faixa-impostos"
+          path="admin/tabelas-imposto"
           element={
             <PrivateRoute roles={ADMIN_ROLES}>
-              <FaixaImpostos />
+              <TabelasImposto />
             </PrivateRoute>
           }
+        />
+        <Route
+          path="admin/faixa-impostos"
+          element={<Navigate to="/admin/tabelas-imposto" replace />}
         />
         <Route
           path="admin/ferramentas/importar-imagens-leituras"

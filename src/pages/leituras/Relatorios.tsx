@@ -564,32 +564,32 @@ export default function Relatorios() {
         const ids = unidadesDemonstrativoFiltradas
           .filter((u) => selectedDemoUnits[u.id])
           .map((u) => u.id);
-        const settled = await Promise.allSettled(
-          ids.map((id) =>
-            api.get<UnitBill>(`/reports/bill/unidade/${id}`, {
-              params: { idTabela: c.idTabelaImposto, dataSelecionada: c.dataFim },
-            })
-          )
-        );
-        const bills: UnitBill[] = [];
-        let falhas = 0;
-        for (const s of settled) {
-          if (s.status === 'fulfilled') bills.push(s.value.data);
-          else falhas += 1;
-        }
-        bills.sort((a, b) =>
+
+        const res = await api.post<{
+          bills: UnitBill[];
+          requested: number;
+          returned: number;
+        }>('/reports/bills/unidades', {
+          unidades: ids,
+          idTabela: c.idTabelaImposto,
+          dataSelecionada: c.dataFim,
+        });
+
+        const bills = [...(res.data.bills ?? [])].sort((a, b) =>
           (a.Unidade || '').localeCompare(b.Unidade || '', 'pt-BR', { numeric: true })
         );
+        const falhas = Math.max(0, (res.data.requested ?? ids.length) - (res.data.returned ?? bills.length));
+
         setDemoBills(bills);
         setGeneratedReportKind(null);
         if (falhas > 0) {
-          toast.error(`${falhas} unidade(s) não puderam ser geradas (sem leitura no período ou erro).`);
+          toast.error(`${falhas} unidade(s) sem leitura no período ou não retornada(s).`);
         }
         if (bills.length > 0) {
           toast.success(
             `${bills.length} demonstrativo(s) gerado(s). Cada unidade: 1ª página envelope, 2ª página demonstrativo. Use Imprimir.`
           );
-        } else if (falhas === 0) {
+        } else {
           toast.error('Nenhum demonstrativo retornado.');
         }
       }

@@ -31,8 +31,9 @@ on:
       - '**/*.md'
   workflow_dispatch:
 
+# Um group por branch: develop e main não se cancelam mutuamente.
 concurrency:
-  group: deploy-admin
+  group: deploy-admin-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

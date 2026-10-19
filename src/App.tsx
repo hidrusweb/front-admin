@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import PrivateRoute from './components/PrivateRoute';
+import { useAuth } from './contexts/AuthContext';
+import { CONDOMINIO_REPORT_ROLES, getUserRole, isCondominioReportRole, STAFF_ROLES } from './lib/auth';
 import AdminLayout from './layouts/AdminLayout';
 
 import Login from './pages/Login';
@@ -18,7 +20,21 @@ import LeiturasCreate from './pages/leituras/Criar';
 import LeiturasImport from './pages/leituras/Importar';
 import Relatorios from './pages/leituras/Relatorios';
 
-const ADMIN_ROLES = ['ADMINISTRADOR', 'COLABORADOR', 'ADMINISTRATIVO'];
+const ADMIN_ROLES = STAFF_ROLES;
+const RELATORIO_ROLES = [...STAFF_ROLES, ...CONDOMINIO_REPORT_ROLES];
+
+/** Administração do condomínio e síndico entram direto em Relatórios; a equipe vê o Dashboard. */
+function Home() {
+  const { user } = useAuth();
+  const role = getUserRole(user);
+  if (isCondominioReportRole(role)) return <Navigate to="/leituras/relatorios" replace />;
+  if (ADMIN_ROLES.includes(role)) return <Dashboard />;
+  return (
+    <div className="card p-6 text-sm text-gray-600">
+      Seu perfil não tem acesso ao painel administrativo.
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -33,7 +49,7 @@ export default function App() {
           </PrivateRoute>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<Home />} />
 
         {/* Administração */}
         <Route
@@ -98,10 +114,38 @@ export default function App() {
         />
 
         {/* Leituras */}
-        <Route path="leituras" element={<LeiturasIndex />} />
-        <Route path="leituras/criar" element={<LeiturasCreate />} />
-        <Route path="leituras/importar" element={<LeiturasImport />} />
-        <Route path="leituras/relatorios" element={<Relatorios />} />
+        <Route
+          path="leituras"
+          element={
+            <PrivateRoute roles={ADMIN_ROLES}>
+              <LeiturasIndex />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="leituras/criar"
+          element={
+            <PrivateRoute roles={ADMIN_ROLES}>
+              <LeiturasCreate />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="leituras/importar"
+          element={
+            <PrivateRoute roles={ADMIN_ROLES}>
+              <LeiturasImport />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="leituras/relatorios"
+          element={
+            <PrivateRoute roles={RELATORIO_ROLES}>
+              <Relatorios />
+            </PrivateRoute>
+          }
+        />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

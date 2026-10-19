@@ -5,6 +5,8 @@ export interface JwtPayload {
   given_name?: string;
   family_name?: string;
   role: string | string[];
+  /** Id(s) do condomínio vinculado ao usuário (claim `condominio`). */
+  condominio?: string | string[];
   nbf: number;
   exp: number;
   iat: number;
@@ -90,6 +92,28 @@ export function getRole(): string {
   const user = getUser();
   if (!user) return '';
   return Array.isArray(user.role) ? user.role[0] : user.role;
+}
+
+/** Perfis da equipe Hidrus: acesso completo ao painel. */
+export const STAFF_ROLES = ['ADMINISTRADOR', 'COLABORADOR'];
+
+/** Perfis do condomínio (administração e síndico): só emitem relatórios do próprio condomínio. */
+export const CONDOMINIO_REPORT_ROLES = ['ADMINISTRATIVO', 'SINDICO'];
+
+export function isCondominioReportRole(role: string): boolean {
+  return CONDOMINIO_REPORT_ROLES.includes(role);
+}
+
+export function getUserRole(u: JwtPayload | null | undefined): string {
+  if (!u) return '';
+  return Array.isArray(u.role) ? u.role[0] : u.role;
+}
+
+/** Ids dos condomínios vinculados ao usuário pela claim `condominio`. */
+export function getUserCondominioIds(u: JwtPayload | null | undefined): number[] {
+  if (!u || u.condominio == null) return [];
+  const raw = Array.isArray(u.condominio) ? u.condominio : [u.condominio];
+  return raw.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0);
 }
 
 export function hasRole(...roles: string[]): boolean {

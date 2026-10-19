@@ -19,7 +19,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserDisplayName } from '../lib/auth';
+import { getUserDisplayName, STAFF_ROLES } from '../lib/auth';
 import api from '../lib/api';
 import {
   normalizeApiList,
@@ -94,7 +94,7 @@ function KpiCard({ label, value, hint, icon, tone }: KpiCardProps) {
 export default function Dashboard() {
   const { user } = useAuth();
   const role = Array.isArray(user?.role) ? user!.role[0] : user?.role ?? '';
-  const isAdmin = ['ADMINISTRADOR', 'COLABORADOR', 'ADMINISTRATIVO'].includes(role);
+  const isAdmin = STAFF_ROLES.includes(role);
   const isAdministrador = role === 'ADMINISTRADOR';
 
   const now = useMemo(() => new Date(), []);

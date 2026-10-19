@@ -21,7 +21,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserDisplayName } from '../lib/auth';
+import { getUserDisplayName, getUserRole, CONDOMINIO_REPORT_ROLES, STAFF_ROLES } from '../lib/auth';
 import api from '../lib/api';
 
 interface NavItem {
@@ -33,11 +33,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', to: '/', icon: <LayoutDashboard size={18} /> },
+  { label: 'Dashboard', to: '/', icon: <LayoutDashboard size={18} />, roles: STAFF_ROLES },
   {
     label: 'Administração',
     icon: <Building2 size={18} />,
-    roles: ['ADMINISTRADOR', 'COLABORADOR', 'ADMINISTRATIVO'],
+    roles: STAFF_ROLES,
     children: [
       { label: 'Condomínios', to: '/admin/condominios', icon: <Building2 size={16} /> },
       { label: 'Usuários', to: '/admin/usuarios', icon: <Users size={16} />, roles: ['ADMINISTRADOR'] },
@@ -50,7 +50,7 @@ const navItems: NavItem[] = [
   {
     label: 'Ferramentas',
     icon: <Wrench size={18} />,
-    roles: ['ADMINISTRADOR', 'COLABORADOR', 'ADMINISTRATIVO'],
+    roles: STAFF_ROLES,
     children: [
       {
         label: 'Imagens nas leituras',
@@ -63,10 +63,15 @@ const navItems: NavItem[] = [
     label: 'Leituras',
     icon: <FileText size={18} />,
     children: [
-      { label: 'Listar Leituras', to: '/leituras', icon: <FileText size={16} /> },
-      { label: 'Criar Leitura', to: '/leituras/criar', icon: <PlusCircle size={16} /> },
-      { label: 'Importar', to: '/leituras/importar', icon: <Upload size={16} /> },
-      { label: 'Relatórios', to: '/leituras/relatorios', icon: <TrendingUp size={16} /> },
+      { label: 'Listar Leituras', to: '/leituras', icon: <FileText size={16} />, roles: STAFF_ROLES },
+      { label: 'Criar Leitura', to: '/leituras/criar', icon: <PlusCircle size={16} />, roles: STAFF_ROLES },
+      { label: 'Importar', to: '/leituras/importar', icon: <Upload size={16} />, roles: STAFF_ROLES },
+      {
+        label: 'Relatórios',
+        to: '/leituras/relatorios',
+        icon: <TrendingUp size={16} />,
+        roles: [...STAFF_ROLES, ...CONDOMINIO_REPORT_ROLES],
+      },
     ],
   },
 ];
@@ -82,11 +87,7 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(() => isLgViewport());
   const [openGroups, setOpenGroups] = useState<string[]>(['Administração', 'Leituras', 'Ferramentas']);
 
-  const userRole = user
-    ? Array.isArray(user.role)
-      ? user.role[0]
-      : user.role
-    : '';
+  const userRole = getUserRole(user);
 
   const handleLogout = async () => {
     try { await api.post('/account/logout'); } catch { /* ignore */ }

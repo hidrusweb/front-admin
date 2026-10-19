@@ -3,8 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import { CONDOMINIO_REPORT_ROLES, getUserCondominioIds, hasRole } from '../../lib/auth';
-import { useAuth } from '../../contexts/AuthContext';
+import { CONDOMINIO_REPORT_ROLES, hasRole, parseCondominioIds } from '../../lib/auth';
 import {
   exportRelatorioGeralExcel,
   exportRelatorioGeralPdf,
@@ -241,9 +240,16 @@ export default function Relatorios() {
   const [savingResumoInformativo, setSavingResumoInformativo] = useState(false);
 
   const isAdministrador = hasRole('ADMINISTRADOR');
-  const { user } = useAuth();
   const isPerfilCondominio = hasRole(...CONDOMINIO_REPORT_ROLES);
-  const condominiosDoUsuario = useMemo(() => getUserCondominioIds(user), [user]);
+
+  const { data: condominiosDoUsuario = [] } = useQuery({
+    queryKey: ['account-me-condominios'],
+    queryFn: () =>
+      api.get<Record<string, unknown>>('/account/me').then((r) =>
+        parseCondominioIds(r.data?.condominios ?? r.data?.Condominios)
+      ),
+    enabled: isPerfilCondominio,
+  });
 
   const { data: todosCondominios = [] } = useQuery({
     queryKey: ['condominios'],
@@ -251,7 +257,7 @@ export default function Relatorios() {
       api.get('/Condominium/condominium').then((r) => (Array.isArray(r.data) ? r.data : []).map(mapCondominio)),
   });
 
-  /** Administração do condomínio e síndico só enxergam o(s) condomínio(s) da claim `condominio` do token. */
+  /** Administração do condomínio e síndico só enxergam o(s) condomínio(s) vinculados ao usuário (/account/me). */
   const condominios = useMemo(
     () => (isPerfilCondominio ? todosCondominios.filter((c) => condominiosDoUsuario.includes(c.id)) : todosCondominios),
     [isPerfilCondominio, todosCondominios, condominiosDoUsuario]

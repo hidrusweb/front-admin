@@ -5,8 +5,6 @@ export interface JwtPayload {
   given_name?: string;
   family_name?: string;
   role: string | string[];
-  /** Id(s) do condomínio vinculado ao usuário (claim `condominio`). */
-  condominio?: string | string[];
   nbf: number;
   exp: number;
   iat: number;
@@ -109,10 +107,9 @@ export function getUserRole(u: JwtPayload | null | undefined): string {
   return Array.isArray(u.role) ? u.role[0] : u.role;
 }
 
-/** Ids dos condomínios vinculados ao usuário pela claim `condominio`. */
-export function getUserCondominioIds(u: JwtPayload | null | undefined): number[] {
-  if (!u || u.condominio == null) return [];
-  const raw = Array.isArray(u.condominio) ? u.condominio : [u.condominio];
+/** Ids dos condomínios vinculados ao usuário, a partir do campo `condominios` de GET /account/me. */
+export function parseCondominioIds(value: unknown): number[] {
+  const raw = Array.isArray(value) ? value : value != null ? [value] : [];
   return raw.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0);
 }
 
